@@ -10,6 +10,7 @@ PTT on gpio 7 on orange pi zero.
 
 For installation on armbian:
 
+```
 git clone https://github.com/F4HTB/Universal_HamRadio_Remote_Mini_SA818
 apt install python3-tornado
 rm /usr/lib/python3.11/EXTERNALLY-MANAGED
@@ -17,6 +18,7 @@ pip3 install pyalsaaudio
 cd Universal_HamRadio_Remote_Mini_SA818
 chmod +x UHRRM
 ./UHRRM
+```
 
 Got to https://your_ip:8888
 Clic somewhere on page to start the connection.
