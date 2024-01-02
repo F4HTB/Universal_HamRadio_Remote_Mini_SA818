@@ -17,7 +17,13 @@ rm /usr/lib/python3.11/EXTERNALLY-MANAGED
 pip3 install pyalsaaudio
 cd Universal_HamRadio_Remote_Mini_SA818
 chmod +x UHRRM
+```
+```
 ./UHRRM
+```
+or
+```
+./start.sh
 ```
 
 Got to https://your_ip:8888
