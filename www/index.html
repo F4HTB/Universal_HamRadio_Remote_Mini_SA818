@@ -1,0 +1,60 @@
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<title>Universal Hamradio Remote Mini by F4HTB</title>
+		<link rel="stylesheet" type="text/css" href="style.css">
+	</head>
+	</head>
+	<body onload="document.addEventListener('click', handlePageClick);">
+
+	<div id="container">
+	
+	<div id="left">
+	
+	<div id="logo">
+		<img src="logo.png" style="width:100px;"><p id="mess">UHRR<br>Mini</p>
+	</div>
+	
+	<div id="RX">
+		<div id="Rxmeters">
+			<div id="Rxinstant">
+				<div class="label">RX volume:<meter low="10" high="70" max="100" value="0"></meter></div>
+					
+				<div class="value"></div>
+			</div>
+		</div>
+		
+		<form id="RX-GAIN_control" class="GAIN_control">
+					AF GAIN:<input class="C" oninput="AudioRX_SetGAIN();" onchange="AudioRX_SetGAIN();" value="250" step="5" type="range" id="C_af" name="volume" min="0" max="1000">
+		</form>
+	</div>
+		
+	<div id="TX">
+		<div id="Txinstant">
+			<div class="label">TX volume:<meter low="10" high="50" max="100" value="0"></meter></div>
+				<div class="value"></div>
+		</div>
+		
+		<form id="TX-GAIN_control" class="GAIN_control">
+			MIC GAIN:<input class="C" oninput="AudioTX_SetGAIN(this.value/100);" onchange="AudioTX_SetGAIN(this.value/100);" value="50" step="5" type="range" id="C_mg" name="volume" min="0" max="200">
+		</form>
+	</div>
+	
+	<div id="div-PTT">
+		<span onmousedown="TXtogle('True');" onmouseup="TXtogle('False');" class="button_unpressed" id="TX-record">PTT</span>	
+	</div>
+	
+	</div>
+	<div id="right">	
+		<canvas class="visualizer" id="canBFSPC" width="1024" ></canvas>
+	</div>
+		
+		
+	<div id="div-latencymeter">latency:∞</div>
+	
+	</div>
+	
+	<script src="controls.js"></script>
+	
+	</body>
+</html>

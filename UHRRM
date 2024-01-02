@@ -1,0 +1,275 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*- 
+
+import os 
+import tornado.httpserver
+import tornado.ioloop
+import tornado.web
+import tornado.websocket
+import configparser
+import time
+import sys
+import alsaaudio
+import threading
+import gc
+import datetime
+from sa818 import *
+from collections import namedtuple
+
+############ Global variables ##################################
+CTRX=None	
+config = configparser.ConfigParser()
+config.read('UHRRM.conf')
+e="No"
+PTTgpio=str(config['OrangePI']['PTTGPIO'])
+radio_opts_struct = namedtuple("radio_opts_struct","bw frequency offset squelch ctcss dcs level emphasis highpass lowpass close_tail")
+############ SA818 ##################################
+def SA818init():
+	global radio
+	# radio = SA818("/dev/ttyS2", 9600)
+	radio = SA818("/dev/ttyS2", 9600)
+	radio.version()
+	
+	Rctcss = None if config['SA818']['ctcss'] == "0" else type_ctcss(str(config['SA818']['ctcss']))
+	Rdcs = None if config['SA818']['dcs'] == "0" else type_dcs(str(config['SA818']['dcs']))
+	
+	radio_opts = radio_opts_struct(
+	bw=int(config['SA818']['bw']),
+	frequency=type_frequency(config['SA818']['frequency']),
+	offset=float(config['SA818']['offset']),
+	squelch=type_squelch(config['SA818']['squelch']),
+	ctcss=Rctcss,
+	dcs=Rdcs,
+	level=type_level(config['SA818']['level']),
+	emphasis=yesno(config['SA818']['emphasis']),
+	highpass=yesno(config['SA818']['highpass']),
+	lowpass=yesno(config['SA818']['lowpass']),
+	close_tail=None
+	)
+	
+	print("\n\
+	bw="+str(radio_opts.bw)+" 0=NARROW (12.5KHz), 1=WIDE (25KHx)\n\
+	frequency="+str(radio_opts.frequency)+"\n\
+	offset="+str(radio_opts.offset)+"\n\
+	squelch="+str(radio_opts.squelch)+"\n\
+	ctcss="+str(radio_opts.ctcss)+"\n\
+	dcs="+str(radio_opts.dcs)+"\n\
+	level="+str(radio_opts.level)+"\n\
+	emphasis="+str(radio_opts.emphasis)+"\n\
+	highpass="+str(radio_opts.highpass)+"\n\
+	lowpass="+str(radio_opts.lowpass)+"\n\
+	\n\ ")
+
+	
+	radio.set_radio(radio_opts)
+	radio.set_filter(radio_opts)
+	radio.set_volume(radio_opts)
+
+############ GPIO ##################################
+def PTTinit():
+	global PTTgpio
+	
+	print("If PTT dont work please apply this before starting: \n\
+	\n\
+	sudo chmod 666 /sys/class/gpio/export\n\
+	sudo chmod 666 /sys/class/gpio/gpio7/direction\n\
+	sudo chmod 666 /sys/class/gpio/gpio7/value\n\
+	\n\
+	")
+	
+	os.system("echo "+PTTgpio+" > /sys/class/gpio/export > /dev/null 2>&1")
+	os.system("echo out > /sys/class/gpio/gpio"+PTTgpio+"/direction > /dev/null 2>&1")
+	
+def PTTset(state):
+	global PTTgpio
+	print("PTT:"+state)
+	if(state == "true"):
+		state = "1"
+	else:
+		state = "0"
+	os.system("echo "+state+" > /sys/class/gpio/gpio"+PTTgpio+"/value")
+	return os.popen("cat /sys/class/gpio/gpio"+PTTgpio+"/value").read()
+
+############ BaseHandler tornado ##############
+class BaseHandler(tornado.web.RequestHandler):
+	def get_current_user(self):
+		return self.get_secure_cookie("user")
+
+############ websocket for control TRX ##############
+ControlTRXHandlerClients = []
+LastPing = time.time()
+
+class WS_ControlTRX(tornado.websocket.WebSocketHandler):
+
+	def open(self):
+		print('new connection on ControlTRX socket.')
+		if(config['SERVER']['yournameserver']!=""):
+			self.write_message("ENT: "+config['SERVER']['yournameserver']);
+		self.set_nodelay(True)
+		
+	@tornado.gen.coroutine
+	def on_message(self, data) :
+		global LastPing
+		print(data)
+		
+		try:
+			(action, datato) = data.split(':')
+		except ValueError:
+			action = data
+			pass
+			
+		if(action == "PING"):
+				self.write_message("PONG")
+		elif(action == "setPTT"):
+			yield self.write_message("getPTT:"+str(PTTset(datato)))
+
+		LastPing = time.time();
+			
+	def on_close(self):
+		gc.collect()
+		
+############ websocket for send RX audio from TRX ##############
+flagWavstart = False
+
+class loadWavdata(threading.Thread):
+
+	def __init__(self):
+		global flagWavstart
+		threading.Thread.__init__(self)
+		self.inp = alsaaudio.PCM(alsaaudio.PCM_CAPTURE, alsaaudio.PCM_NORMAL, channels=1, rate=8000, format=alsaaudio.PCM_FORMAT_FLOAT_LE, periodsize=256, device=config['AUDIO']['inputdevice'])
+		print('recording...')
+
+	def run(self):
+		global Wavframes, flagWavstart, AudioRXHandlerClients 
+		ret=b''
+		while True:
+			while not flagWavstart:
+				time.sleep(0.5)
+			l, ret = self.inp.read()
+			if l > 0:
+				AudioRXHandlerClients.Wavframes.append(ret)
+			else:
+				print("overrun")
+				time.sleep(0.01)
+				
+
+class WS_AudioRXHandler(tornado.websocket.WebSocketHandler):
+
+	def open(self):
+		self.set_nodelay(True)
+		global flagWavstart, AudioRXHandlerClients
+		AudioRXHandlerClients = self
+		self.Wavframes = []
+		print('new connection on AudioRXHandler socket.')
+		flagWavstart = True
+		self.tailstream()
+		
+	@tornado.gen.coroutine
+	def tailstream(self):
+		while flagWavstart:
+			while len(self.Wavframes)==0:
+				yield tornado.gen.sleep(0.1)
+			yield self.write_message(self.Wavframes[0],binary=True)
+			del self.Wavframes[0] 
+			
+	def on_close(self):
+		global flagWavstart
+		print('connection closed for audioRX')
+		flagWavstart = False
+		self.Wavframes = []
+		gc.collect()
+
+############ websocket for control TX ##############
+last_AudioTXHandler_msg_time=0
+AudioTXHandlerClients = []
+
+class WS_AudioTXHandler(tornado.websocket.WebSocketHandler):
+
+	def stoppttontimeout(self):
+		global last_AudioTXHandler_msg_time
+		try:
+			if time.time() > last_AudioTXHandler_msg_time + 10:
+				if self.ws_connection and CTRX.infos["PTT"]==True:
+					PTTset("false")
+					print("stop ptt on timeout")
+		except:
+			return None
+		tornado.ioloop.IOLoop.instance().add_timeout(datetime.timedelta(seconds=1), self.stoppttontimeout)
+
+
+	def TX_init(self, msg) :
+		try:
+			itrate, is_encoded, op_rate, op_frm_dur = [int(i) for i in msg.split(',')]
+			self.is_encoded = is_encoded
+			self.frame_size = op_frm_dur * op_rate
+			device = config['AUDIO']['outputdevice']
+			self.inp = alsaaudio.PCM(alsaaudio.PCM_PLAYBACK, alsaaudio.PCM_NONBLOCK, channels=1, rate=itrate, format=alsaaudio.PCM_FORMAT_S16_LE, periodsize=2048, device=device)		
+		except:
+			print("TX pcm device busy")
+	
+	def open(self):
+		global last_AudioTXHandler_msg_time, AudioTXHandlerClients
+		AudioTXHandlerClients = self
+		print('new connection on AudioTXHandler socket.')
+		last_AudioTXHandler_msg_time=time.time()
+		self.stoppttontimeout()
+		self.set_nodelay(True)
+
+	def on_message(self, data) :
+		global last_AudioTXHandler_msg_time
+		last_AudioTXHandler_msg_time=time.time()
+		
+		if str(data).startswith('m:') :
+			self.TX_init(str(data[2:]))
+		elif str(data).startswith('s:') :
+			self.inp.close()
+		else :
+			self.inp.write(data)
+			gc.collect()
+
+	def on_close(self):
+		if(hasattr(self,"inp")):
+			self.inp.close()
+		PTTset("false")
+		print('connection closed for TX socket')	
+
+############ Main ##############
+class MainHandler(BaseHandler):
+
+	def get(self):
+		self.application.settings.get("compiled_template_cache", False)
+		self.set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+		self.render("www/index.html")
+
+if __name__ == "__main__":
+
+	try:
+		SA818init()
+	except (IOError, SystemError) as err:
+		print(err)
+
+	try:
+		
+		PTTinit()
+		
+		threadloadWavdata = loadWavdata()
+		threadloadWavdata.start()
+		
+		app = tornado.web.Application([
+		(r'/WSaudioRX', WS_AudioRXHandler),
+		(r'/WSaudioTX', WS_AudioTXHandler),
+		(r'/WSCTRX', WS_ControlTRX),
+		(r'/', MainHandler),
+		(r'/(.*)', tornado.web.StaticFileHandler, { 'path' : './www' })
+		],debug=bool(config['SERVER']['debug']), websocket_ping_interval=10, cookie_secret=config['SERVER']['cookie_secret'])
+	except:
+		e = str(sys.exc_info())
+		print(e)
+		
+	http_server = tornado.httpserver.HTTPServer(app, ssl_options={
+	"certfile": os.path.join(config['SERVER']['certfile']),
+	"keyfile": os.path.join(config['SERVER']['keyfile']),
+	})
+	http_server.listen(int(config['SERVER']['port']))
+	print('HTTP server started.')
+	tornado.ioloop.IOLoop.instance().start()
