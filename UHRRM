@@ -209,8 +209,12 @@ class WS_AudioRXHandler(tornado.websocket.WebSocketHandler):
 		while flagWavstart:
 			while len(self.Wavframes)==0:
 				yield tornado.gen.sleep(0.1)
-			yield self.write_message(self.Wavframes[0],binary=True)
-			del self.Wavframes[0]
+			try:
+				yield self.write_message(self.Wavframes[0],binary=True)
+				del self.Wavframes[0]
+			except tornado.websocket.WebSocketClosedError:
+				print("WebSocket closed. Stopping tailstream.")
+				break
 			
 	def on_close(self):
 		global flagWavstart
