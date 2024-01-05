@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html>
 	<head>
 		<meta charset="UTF-8">
@@ -5,50 +6,119 @@
 		<link rel="stylesheet" type="text/css" href="style.css">
 	</head>
 	</head>
-	<body onload="document.addEventListener('click', handlePageClick);">
+	<body onload="bodyload();document.addEventListener('click', handlePageClick);">
 
 	<div id="container">
 	
-	<div id="left">
+	<div id="div-left">
 	
 	<div id="logo">
-		<img src="logo.png" style="width:100px;"><p id="mess">UHRR<br>Mini</p>
+		<img src="logo.png" style="width:100px;"><p id="mess">UHRR Mini<br>Click anywhere to connect.</p>
 	</div>
 	
 	<div id="RX">
-		<div id="Rxmeters">
-			<div id="Rxinstant">
-				<div class="label">RX volume:<meter low="10" high="70" max="100" value="0"></meter></div>
-					
+		<div id="RXinstant" class="RXinstant">
+				<div class="label">RX volume:</div>
+				<meter low="10" high="70" max="100" value="0"></meter>
 				<div class="value"></div>
-			</div>
 		</div>
-		
-		<form id="RX-GAIN_control" class="GAIN_control">
-					AF GAIN:<input class="C" oninput="AudioRX_SetGAIN();" onchange="AudioRX_SetGAIN();" value="250" step="5" type="range" id="C_af" name="volume" min="0" max="1000">
-		</form>
+		<div class="RXinstant">
+			<div class="label">AF Gain:</div>
+			<form id="RX-GAIN_control" class="GAIN_control"><input class="C" oninput="AudioRX_SetGAIN();" onchange="AudioRX_SetGAIN();" value="250" step="5" type="range" id="C_af" name="volume" min="0" max="1000"></form>
+		</div>
 	</div>
 		
 	<div id="TX">
-		<div id="Txinstant">
-			<div class="label">TX volume:<meter low="10" high="50" max="100" value="0"></meter></div>
-				<div class="value"></div>
+		<div id="TXinstant" class="TXinstant">
+			<div class="label">TX volume:</div>
+			<meter low="10" high="50" max="100" value="0"></meter>
+			<div class="value"></div>
 		</div>
-		
-		<form id="TX-GAIN_control" class="GAIN_control">
-			MIC GAIN:<input class="C" oninput="AudioTX_SetGAIN(this.value/100);" onchange="AudioTX_SetGAIN(this.value/100);" value="50" step="5" type="range" id="C_mg" name="volume" min="0" max="200">
-		</form>
+		<div class="TXinstant">
+			<div class="label">MIC Gain:</div>
+			<form id="TX-GAIN_control" class="GAIN_control"><input class="C" oninput="AudioTX_SetGAIN(this.value/100);" onchange="AudioTX_SetGAIN(this.value/100);" value="150" step="5" type="range" id="C_mg" name="volume" min="0" max="600"></form>
+		</div>
 	</div>
 	
+	<div id="Scann">
+		<div class="label">Frequency scanning:</div>
+		<textarea  id="Scan_frequencies" name="Scan_frequencies" rows="3" cols="8"></textarea>
+		 <input type="checkbox"  id="Scan_frequencies_togle" name="Scan_frequencies_togle">
+	</div>
+	
+	</div>
+
+	<div id="div-right">	
+		<canvas class="visualizer" id="canBFSPC" width="1024" ></canvas>
+		<canvas class="visualizer" id="canBFWF" width="1024" ></canvas>
+	</div>
+
+	<div id="SA818_control">	
+		<table>
+			<tr>
+			
+			
+			<td><div class="label">Frequency (RX):</div></td>
+			<td><input type="text" id="frequency" name="frequency" required minlength="8" maxlength="8" size="10" /></td>
+			
+			
+			
+			<td><div class="label">Squelch:</div></td>
+			<td>
+				<select name="squelch" id="squelch">
+						<option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option>
+				</select>
+			</td>
+			
+			
+			<td><div class="label">Highpass:</div></td>
+			<td><input type="checkbox" id="highpass" name="highpass" value=""></td>
+
+			</tr>
+			<tr>
+			
+			<td><div class="label">Offset (TX):</div>
+			<td><input type="text" id="offset" name="offset" required minlength="8" maxlength="8" size="10" /></td>
+
+			<td><div class="label">CTCSS:</div></td>
+			<td>
+				<select name="ctcss" id="ctcss">
+					<option value="None">None</option><option value="67.0">67.0</option><option value="71.9">71.9</option><option value="74.4">74.4</option><option value="77.0">77.0</option><option value="79.7">79.7</option><option value="82.5">82.5</option><option value="85.4">85.4</option><option value="88.5">88.5</option><option value="91.5">91.5</option><option value="94.8">94.8</option><option value="97.4">97.4</option><option value="100.0">100.0</option><option value="103.5">103.5</option><option value="107.2">107.2</option><option value="110.9">110.9</option><option value="114.8">114.8</option><option value="118.8">118.8</option><option value="123.0">123.0</option><option value="127.3">127.3</option><option value="131.8">131.8</option><option value="136.5">136.5</option><option value="141.3">141.3</option><option value="146.2">146.2</option><option value="151.4">151.4</option><option value="156.7">156.7</option><option value="162.2">162.2</option><option value="167.9">167.9</option><option value="173.8">173.8</option><option value="179.9">179.9</option><option value="186.2">186.2</option><option value="192.8">192.8</option><option value="203.5">203.5</option><option value="210.7">210.7</option><option value="218.1">218.1</option><option value="225.7">225.7</option><option value="233.6">233.6</option><option value="241.8">241.8</option><option value="250.3">250.3</option>
+				</select>
+			</td>
+			
+			<td><div class="label">Lowpass:</div></td>
+			<td><input type="checkbox" id="lowpass" name="lowpass" value=""></td>
+			
+			</tr>
+			<tr>
+			
+			<td><div class="label">Bandwidth:</div>
+			<td>
+				<select name="bw" id="bw">
+				  <option value="0">NARROW (12.5KHz)</option>
+				  <option value="1">WIDE (25KHx)</option>
+				</select>
+			</td>
+			
+			<td><div class="label">DCS:</div>
+			<td>
+				<select name="dcs" id="dcs">
+					<option value="None">None</option><option value="023">023</option><option value="025">025</option><option value="026">026</option><option value="031">031</option><option value="032">032</option><option value="036">036</option><option value="043">043</option><option value="047">047</option><option value="051">051</option><option value="053">053</option><option value="054">054</option><option value="065">065</option><option value="071">071</option><option value="072">072</option><option value="073">073</option><option value="074">074</option><option value="114">114</option><option value="115">115</option><option value="116">116</option><option value="125">125</option><option value="131">131</option><option value="132">132</option><option value="134">134</option><option value="143">143</option><option value="152">152</option><option value="155">155</option><option value="156">156</option><option value="162">162</option><option value="165">165</option><option value="172">172</option><option value="174">174</option><option value="205">205</option><option value="223">223</option><option value="226">226</option><option value="243">243</option><option value="244">244</option><option value="245">245</option><option value="251">251</option><option value="261">261</option><option value="263">263</option><option value="265">265</option><option value="271">271</option><option value="306">306</option><option value="311">311</option><option value="315">315</option><option value="331">331</option><option value="343">343</option><option value="346">346</option><option value="351">351</option><option value="364">364</option><option value="365">365</option><option value="371">371</option><option value="411">411</option><option value="412">412</option><option value="413">413</option><option value="423">423</option><option value="431">431</option><option value="432">432</option><option value="445">445</option><option value="464">464</option><option value="465">465</option><option value="466">466</option><option value="503">503</option><option value="506">506</option><option value="516">516</option><option value="532">532</option><option value="546">546</option><option value="565">565</option><option value="606">606</option><option value="612">612</option><option value="624">624</option><option value="627">627</option><option value="631">631</option><option value="632">632</option><option value="654">654</option><option value="662">662</option><option value="664">664</option><option value="703">703</option><option value="712">712</option><option value="723">723</option><option value="731">731</option><option value="732">732</option><option value="734">734</option><option value="743">743</option><option value="754">754</option>
+				</select>
+			</td>
+			
+
+			<td><div class="label">Emphasis:</div></td>
+			<td><input type="checkbox" id="emphasis" name="emphasis" value=""></td>
+
+			</tr>
+		</table>
+	</div>	
+
 	<div id="div-PTT">
 		<span onmousedown="TXtogle('True');" onmouseup="TXtogle('False');" class="button_unpressed" id="TX-record">PTT</span>	
-	</div>
-	
-	</div>
-	<div id="right">	
-		<canvas class="visualizer" id="canBFSPC" width="1024" ></canvas>
-	</div>
-		
+	</div>	
 		
 	<div id="div-latencymeter">latency:∞</div>
 	

@@ -6,6 +6,8 @@ import tornado.httpserver
 import tornado.ioloop
 import tornado.web
 import tornado.websocket
+import tornado.concurrent
+import concurrent.futures
 import configparser
 import time
 import sys
@@ -22,30 +24,29 @@ config = configparser.ConfigParser()
 config.read('UHRRM.conf')
 e="No"
 PTTgpio=str(config['OrangePI']['PTTGPIO'])
-radio_opts_struct = namedtuple("radio_opts_struct","bw frequency offset squelch ctcss dcs level emphasis highpass lowpass close_tail")
+
+radio_opts_struct = namedtuple("radio_opts_struct","bw frequency offset squelch ctcss dcs level emphasis highpass lowpass close_tail")	
+radio_opts = radio_opts_struct(
+bw=None,
+frequency=None,
+offset=None,
+squelch=None,
+ctcss=None,
+dcs=None,
+level=None,
+emphasis=None,
+highpass=None,
+lowpass=None,
+close_tail=None
+)
 ############ SA818 ##################################
 def SA818init():
-	global radio
-	# radio = SA818("/dev/ttyS2", 9600)
-	radio = SA818("/dev/ttyS2", 9600)
+	global radio, radio_opts, config
+	
+	radio = SA818(config['SA818']['serial'], config['SA818']['rate'])
 	radio.version()
 	
-	Rctcss = None if config['SA818']['ctcss'] == "0" else type_ctcss(str(config['SA818']['ctcss']))
-	Rdcs = None if config['SA818']['dcs'] == "0" else type_dcs(str(config['SA818']['dcs']))
-	
-	radio_opts = radio_opts_struct(
-	bw=int(config['SA818']['bw']),
-	frequency=type_frequency(config['SA818']['frequency']),
-	offset=float(config['SA818']['offset']),
-	squelch=type_squelch(config['SA818']['squelch']),
-	ctcss=Rctcss,
-	dcs=Rdcs,
-	level=type_level(config['SA818']['level']),
-	emphasis=yesno(config['SA818']['emphasis']),
-	highpass=yesno(config['SA818']['highpass']),
-	lowpass=yesno(config['SA818']['lowpass']),
-	close_tail=None
-	)
+	SA818OptioizeConf()
 	
 	print("\n\
 	bw="+str(radio_opts.bw)+" 0=NARROW (12.5KHz), 1=WIDE (25KHx)\n\
@@ -65,18 +66,43 @@ def SA818init():
 	radio.set_filter(radio_opts)
 	radio.set_volume(radio_opts)
 
+def SA818OptioizeConf():
+	global radio_opts, config
+	
+	Rctcss = None if config['SA818']['ctcss'] in ["0", "None"] else type_ctcss(str(config['SA818']['ctcss']))
+	Rdcs = None if config['SA818']['dcs'] in ["0", "None"] else type_dcs(str(config['SA818']['dcs']))
+	
+	radio_opts = radio_opts_struct(
+	bw=int(config['SA818']['bw']),
+	frequency=type_frequency(config['SA818']['frequency']),
+	offset=float(config['SA818']['offset']),
+	squelch=type_squelch(config['SA818']['squelch']),
+	ctcss=Rctcss,
+	dcs=Rdcs,
+	level=type_level(config['SA818']['level']),
+	emphasis=yesno(config['SA818']['emphasis']),
+	highpass=yesno(config['SA818']['highpass']),
+	lowpass=yesno(config['SA818']['lowpass']),
+	close_tail=None
+	)
+
+def SA818Conf(field, setting):
+	global radio, radio_opts
+	
+	if field in radio_opts._fields:
+		config['SA818'][field]=setting
+		SA818OptioizeConf()
+		if field in ['bw', 'frequency', 'offset', 'squelch', 'ctcss', 'dcs']:
+			radio.set_radio(radio_opts)
+		elif field in ['emphasis', 'highpass', 'lowpass']:
+			radio.set_filter(radio_opts)
+
+	with open('UHRRM.conf', 'w') as configfile:
+		config.write(configfile)
+
 ############ GPIO ##################################
 def PTTinit():
 	global PTTgpio
-	
-	print("If PTT dont work please apply this before starting: \n\
-	\n\
-	sudo chmod 666 /sys/class/gpio/export\n\
-	sudo chmod 666 /sys/class/gpio/gpio7/direction\n\
-	sudo chmod 666 /sys/class/gpio/gpio7/value\n\
-	\n\
-	")
-	
 	os.system("echo "+PTTgpio+" > /sys/class/gpio/export > /dev/null 2>&1")
 	os.system("echo out > /sys/class/gpio/gpio"+PTTgpio+"/direction > /dev/null 2>&1")
 	
@@ -100,6 +126,12 @@ ControlTRXHandlerClients = []
 LastPing = time.time()
 
 class WS_ControlTRX(tornado.websocket.WebSocketHandler):
+	executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+
+	@tornado.concurrent.run_on_executor
+	def SA818Conf_setup(self, field, setting):
+		SA818Conf(field, setting)
+		pass
 
 	def open(self):
 		print('new connection on ControlTRX socket.')
@@ -109,7 +141,7 @@ class WS_ControlTRX(tornado.websocket.WebSocketHandler):
 		
 	@tornado.gen.coroutine
 	def on_message(self, data) :
-		global LastPing
+		global LastPing, radio_opts
 		print(data)
 		
 		try:
@@ -119,10 +151,18 @@ class WS_ControlTRX(tornado.websocket.WebSocketHandler):
 			pass
 			
 		if(action == "PING"):
-				self.write_message("PONG")
+			yield self.write_message("PONG")
 		elif(action == "setPTT"):
 			yield self.write_message("getPTT:"+str(PTTset(datato)))
-
+		elif(action == "getCONFIG"):
+			result_string = ",".join([f"{field}={value}" for field, value in radio_opts._asdict().items()])
+			yield self.write_message("getCONFIG:"+str(result_string)) 
+			yield print("getCONFIG:"+str(result_string))
+		elif(action == "setCONFIG"):
+			(field, setting) = datato.split('=')
+			yield self.SA818Conf_setup(field, setting)
+			yield self.write_message("setCONFIG:OK")
+			
 		LastPing = time.time();
 			
 	def on_close(self):
@@ -170,7 +210,7 @@ class WS_AudioRXHandler(tornado.websocket.WebSocketHandler):
 			while len(self.Wavframes)==0:
 				yield tornado.gen.sleep(0.1)
 			yield self.write_message(self.Wavframes[0],binary=True)
-			del self.Wavframes[0] 
+			del self.Wavframes[0]
 			
 	def on_close(self):
 		global flagWavstart

@@ -1,14 +1,22 @@
 function handlePageClick(event) {
-	bodyload();
-	document.removeEventListener('click', handlePageClick);
-}
-function bodyload(){ 
 	ControlTRX_start();
 	AudioRX_start();
 	AudioTX_start();
 	checklatency(500);
+	document.removeEventListener('click', handlePageClick);
 }
 
+function bodyload(){
+	var sa818ControlDiv = document.getElementById('SA818_control');
+	var inputAndSelectElements = sa818ControlDiv.querySelectorAll('input, select');
+	for (var i = 0; i < inputAndSelectElements.length; i++) {
+		inputAndSelectElements[i].disabled = true;
+	}
+	blikcritik("mess")
+	document.getElementById('frequency').addEventListener('change', validateFrequencyAndOffsetFields);
+	document.getElementById('offset').addEventListener('change', validateFrequencyAndOffsetFields);
+	document.getElementById('Scan_frequencies').addEventListener('blur', validateLinesInTextAreaFS);
+}
 
 //TRX control routines///////////////////////////////////////////////////////////////////////////
 
@@ -17,12 +25,14 @@ var wsControlTRX = "";
 function ControlTRX_start(){
 	wsControlTRX = new WebSocket( 'wss://' + window.location.href.split( '/' )[2] + '/WSCTRX' );
 	wsControlTRX.onmessage = wsControlTRXcrtol;
+	wsControlTRX.onopen = SA818_Control_Init;
 }
 
 function wsControlTRXcrtol( msg ){
 	words = String(msg.data).split(':');
 	if(words[0] == "PONG"){showlatency();}
 	else if(words[0] == "ENT"){document.getElementById("mess").textContent = "UHRR Mini - "+words[1];console.log(words[1]);}
+	else if(words[0] == "getCONFIG"){SA818_Control_Init_Values(words[1]);}
 }
 
 var startTime;
@@ -58,11 +68,129 @@ function TXtogle(state="None")
 	}
 	else
 	{
+		AudioRX_audiobuffer.length = 0;
 		toggleRecord();
 		toggleaudioRX();
 		sendTRXptt(false);
 		button_unpressed();
 	}
+	AudioRX_audiobuffer.length = 0;
+}
+
+  function sendInputData(name, value) {
+    if (typeof wsControlTRX !== 'undefined' && wsControlTRX.readyState === WebSocket.OPEN) {
+      wsControlTRX.send("setCONFIG:"+name+"="+value);
+    }
+  }
+
+//SA818 control routines///////////////////////////////////////////////////////////////////////////
+
+function SA818_Control_Init_Values(values){
+	pairs = String(values).split(',');
+	const sa818ControlDiv = document.getElementById('SA818_control');
+	
+
+	pairs.forEach(pair => {
+		const [field, value] = pair.split('=');
+		const element = sa818ControlDiv.querySelector(`[id="${field}"]`);
+		if (element) {
+			if (element.type === 'checkbox') {
+				element.checked = (value === 'true');
+			} else {
+				element.value = value;
+			}
+			element.disabled = false;
+		}
+	});
+}
+
+function SA818_Control_Init(){
+	wsControlTRX.send("getCONFIG");
+
+	var SA818_Control_Container = document.getElementById('SA818_control');
+
+	var checkboxes = SA818_Control_Container.querySelectorAll('input[type="checkbox"]');
+	checkboxes.forEach(function (checkbox) {
+	  checkbox.addEventListener('change', function () {
+		sendInputData(checkbox.name, checkbox.checked);
+	  });
+	});
+
+	var textInputs = SA818_Control_Container.querySelectorAll('input[type="text"]');
+	
+	textInputs.forEach(function (textInput) {
+	  textInput.addEventListener('change', function () {
+		sendInputData(textInput.name, textInput.value);
+	  });
+	});
+	
+	var selects = SA818_Control_Container.querySelectorAll('select');
+
+	selects.forEach(function (select) {
+	  select.addEventListener('change', function () {
+		sendInputData(select.name, select.value);
+	  });
+	});
+}
+
+function validateFrequencyAndOffsetFields() {
+  var frequencyInput = document.getElementById('frequency');
+  var offsetInput = document.getElementById('offset');
+  var frequencyValue = parseFloat(frequencyInput.value);
+  var offsetValue = parseFloat(offsetInput.value);
+  frequencyInput.style.background = '';
+  offsetInput.style.background = '';
+  if ((frequencyValue >= 144 && frequencyValue <= 148) || (frequencyValue >= 420 && frequencyValue <= 450)) {
+    frequencyInput.value = frequencyValue.toFixed(4);
+  } else {
+    frequencyInput.style.background = 'red';
+    frequencyInput.title = 'La fréquence doit être entre 144 et 148 ou entre 420 et 450.';
+  }
+  if ((frequencyValue + offsetValue >= 144 && frequencyValue + offsetValue <= 148) || (frequencyValue + offsetValue >= 420 && frequencyValue + offsetValue <= 450)) {
+    offsetInput.value = offsetValue.toFixed(4);
+  } else {
+    offsetInput.style.background = 'red';
+    offsetInput.title = 'La somme de la fréquence et de l\'offset doit être entre 144 et 148 ou entre 420 et 450.';
+  }
+}
+
+function validateLinesInTextAreaFS(e) {
+       var textarea = e.target || e.srcElement;
+        const checkbox = document.getElementById('Scan_frequencies_togle');
+
+        const lines = textarea.value.split('\n');
+        let allLinesValid = true;
+		
+const formattedLines = lines
+    .map(line => {
+        const trimmedLine = line.trim();
+
+        if (trimmedLine !== '' && /^-?\d+(\.\d+)?$/.test(trimmedLine)) {
+            return parseFloat(trimmedLine).toFixed(4);
+        } else {
+            return null; 
+        }
+    })
+    .filter(Boolean); 
+
+
+	textarea.value = formattedLines.join('\n');
+
+	const isValid = formattedLines.every(value => {
+		const floatValue = parseFloat(value);
+		return (floatValue >= 144 && floatValue <= 148) || (floatValue >= 420 && floatValue <= 450);
+	});
+
+
+	if (!isValid) {
+		textarea.style.backgroundColor = 'red';
+		checkbox.checked = false;
+		checkbox.disabled = true;
+	} else {
+		textarea.style.backgroundColor = ''; // Remettre le style par défaut
+		checkbox.disabled = false;
+	}
+
 }
 
 //RX Audio routines///////////////////////////////////////////////////////////////////////////
@@ -509,7 +637,7 @@ var wsAudioTX = "";
 var ap = "";
 var mh = "";
 
-const TXinstantMeter = document.querySelector('#Txinstant meter');
+const TXinstantMeter = document.querySelector('#TXinstant meter');
 
 function AudioTX_start()
 {
@@ -582,35 +710,80 @@ function toggleRecord(sendit = false)
 function drawBF(){
 	if(muteRX){Audio_analyser=AudioTX_analyser}else{Audio_analyser=AudioRX_analyser}
 	drawRXSPC(Audio_analyser);
-	setTimeout(function(){ drawBF(); }, 200);
+	drawRXWTT(Audio_analyser);
+	setTimeout(function(){ drawBF(); }, 100);
 }
 
+canvasBFspc = document.getElementById("canBFSPC");
+ctxBFspc = canvasBFspc.getContext("2d");
 function drawRXSPC(Audio_analyser){
 var arraySPC = new Float32Array(Audio_analyser.fftSize);
 Audio_analyser.getFloatTimeDomainData(arraySPC);
-canvasBFspc = document.getElementById("canBFSPC");
-ctxFwf = canvasBFspc.getContext("2d");
-ctxFwf.clearRect(0, 0, canvasBFspc.width, canvasBFspc.height);
-ctxFwf.fillStyle = 'rgb(0, 0, 0)';
-ctxFwf.fillRect(0, 0, canvasBFspc.width, canvasBFspc.height);
-ctxFwf.lineWidth = 2;
-ctxFwf.strokeStyle = 'rgb(255, 255, 0)';
-ctxFwf.beginPath();
+
+arraySPC = arraySPC.map(function(value) {
+  return value / 2.5;
+});
+
+ctxBFspc.clearRect(0, 0, canvasBFspc.width, canvasBFspc.height);
+ctxBFspc.fillStyle = 'rgb(0, 0, 0)';
+ctxBFspc.fillRect(0, 0, canvasBFspc.width, canvasBFspc.height);
+ctxBFspc.lineWidth = 2;
+ctxBFspc.strokeStyle = 'rgb(255, 255, 0)';
+ctxBFspc.beginPath();
 var largeurTranche = canvasBFspc.width * 1.0 / Audio_analyser.fftSize;
 var x = 0;
+var canvasBFspcdiv2 = canvasBFspc.height/2;
 
   for(var i = 0; i < Audio_analyser.fftSize; i++) {
-    var y = canvasBFspc.height/2 + arraySPC[i] * canvasBFspc.height;
+    var y = canvasBFspcdiv2 + arraySPC[i] * canvasBFspcdiv2;
 	
     if(i === 0) {
-      ctxFwf.moveTo(x, y);
+      ctxBFspc.moveTo(x, y);
     } else {
-      ctxFwf.lineTo(x, y);
+      ctxBFspc.lineTo(x, y);
     }
     x += largeurTranche;
   }
-  ctxFwf.lineTo(canvasBFspc.width, canvasBFspc.height/2);
-  ctxFwf.stroke();
+  ctxBFspc.lineTo(canvasBFspc.width, canvasBFspc.height/2);
+  ctxBFspc.stroke();
+}
+
+canvasBFFFT = document.getElementById("canBFWF");
+ctxBFFFT = canvasBFFFT.getContext("2d");
+function drawRXWTT(Audio_analyser){
+Audio_analyser.fftSize = canvasBFFFT.width;
+var arrayFFT = new Float32Array(Audio_analyser.frequencyBinCount);
+Audio_analyser.getFloatFrequencyData(arrayFFT);
+ctxBFFFT.clearRect(0, 0, canvasBFFFT.width, canvasBFFFT.height);
+ctxBFFFT.fillStyle = 'rgb(0, 0, 0)';
+ctxBFFFT.fillRect(0, 0, canvasBFFFT.width, canvasBFFFT.height);
+
+var binWidth = canvasBFFFT.width / arrayFFT.length;
+
+  ctxBFFFT.beginPath();
+  ctxBFFFT.strokeStyle = 'rgb(255, 255, 0)';
+  ctxBFFFT.lineWidth = 2;
+
+  for (var i = 0; i < arrayFFT.length; i++) {
+    var value = arrayFFT[i];
+    var normalizedValue = (value + 140) / 140; // Normaliser dans la plage 0-1 (ajustement à titre d'exemple)
+    var x = i * binWidth;
+    var y = canvasBFFFT.height - normalizedValue * canvasBFFFT.height;
+
+    if (i === 0) {
+      ctxBFFFT.moveTo(x, y);
+    } else {
+      ctxBFFFT.lineTo(x, y);
+    }
+  }
+
+  ctxBFFFT.stroke();
+
+}
+
+function getColorForValue(value) {
+  var hue = (1 - value) * 120; // Variation de la teinte en fonction de la valeur
+  return 'hsl(' + hue + ', 100%, 50%)';
 }
 
 function blikcritik(elemtID){

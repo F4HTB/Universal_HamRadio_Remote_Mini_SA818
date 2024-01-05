@@ -21,10 +21,10 @@ body {
 	border-color:orange;
 	padding:10px;
 	width:720px;
-	height: 300px;
+	height: 450px;
 }
 
-#left {
+#div-left {
 	float:left;
 	width:300px;
 	height:300px;
@@ -47,14 +47,29 @@ body {
 	line-height:35px;
 }
 
+.RXinstant, .TXinstant {
+    display: flex;
+    justify-content: space-between;
+    align-items: center; /* Centre les éléments verticalement si nécessaire */
+}
+
+.RXinstant .label, .TXinstant .label{
+    order: 1; /* Change l'ordre d'affichage pour mettre le label en premier */
+	width:100px;
+}
+
+.RXinstant meter, .TXinstant meter{
+    order: 2; /* Change l'ordre d'affichage pour mettre le meter en second */
+}
+
+.RXinstant form, .TXinstant form{
+    order: 2; /* Change l'ordre d'affichage pour mettre le formulaire en second */
+}
+
 #TX{
 	margin-top:15px;
 	height:70px;
 	line-height:35px;
-}
-
-#div-PTT{
-	height:40px;
 }
 
 #TX-record
@@ -67,21 +82,79 @@ body {
 	display: inline-block;
 }
 
-#right {
-    float:right;
-	width:400px;
+#div-right {
+    float: right;
+    width: 400px;
+	height: 300px;
+    display: flex;
+    flex-direction: column;
 }
 
-#canBFSPC{
+#div-right .visualizer {
+	margin-bottom: 10px;
+    flex: 1;
 	width:400px; 
-	height:298px; 
+	height:280px; 
 	background:black;
 	background-color:black;
 	border-radius: 5px 5px 5px 5px;
 	box-shadow:0px 2px 2px 0px rgba(0, 0, 0, 0.5) inset,0px 2px 2px 0px rgba(255, 255, 255, 0.5);
 }
 
+#SA818_control
+{
+	margin-top: 20px;
+	float: left;
+	width: 720px;
+	height: 30px;
+}
 
+#SA818_control table
+{
+	width:100%;
+}
+
+#SA818_control input, select
+{
+	width: 120px;
+	margin-right: 10px;
+}
+
+#div-PTT{
+	position: absolute;
+	bottom: 30px;
+	height:40px;
+	float: right;
+	width: 300px;
+}
+
+#Scann{
+	display: flex;
+	align-items: center;
+}
+
+#Scann .label {
+    margin-right: 10px;  
+}
+
+#Scann textarea{
+	height:40px;
+	width: 128px;
+	resize: none;
+}
+
+#Scann input[type="checkbox"] {
+    margin-left: 20px; 
+	margin-right: 20px;
+}
+
+meter{
+	width:200px;
+}
+
+input[type="range"] {
+    width:200px;
+}
 
 .button_pressed{
 	box-shadow:0px 2px 2px 0px rgba(0, 0, 0, 0.5) inset,0px 2px 2px 0px rgba(255, 255, 255, 0.5);	
@@ -100,6 +173,7 @@ body {
     position: absolute;
     bottom: 10px;
 	height:20px;
+	right: 10px;
 }
 
 .GAIN_control
