@@ -22,10 +22,12 @@ chmod +x UHRRM
 ```
 ./UHRRM
 ```
-or
+or prefer:
 ```
 ./start.sh
 ```
+Start.sh include some tricks for GPIO and alsamixer configuration for orangie pi zero.
+
 
 Got to https://your_ip:8888
 Clic somewhere on page to start the connection.
