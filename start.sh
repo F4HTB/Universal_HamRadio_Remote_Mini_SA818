@@ -4,12 +4,26 @@ if [ "$EUID" -ne 0 ]
   exit
 fi
 
-amixer --quiet set "Mic1" unmute 
-amixer --quiet set Mic1 50%
-amixer --quiet set "Mic1 Boost" 20dB
-if amixer get Mic1 | grep -q "Capture \[off\]"; then amixer --quiet set "Mic1" toggle ; fi
+amixer --quiet sset "Line In" 0%
+amixer --quiet set "Line In" mute 
+
 if amixer get "Line Out" | grep -q "\[off\]"; then amixer --quiet set "Line Out" unmute ; fi
-amixer --quiet sset "Line Out" -- -10dB
+amixer --quiet sset "Line Out" -- -6dB
+
+amixer --quiet set "Mic1" mute 
+amixer --quiet set "Mic1" 0%
+
+amixer --quiet set "Mic1 Boost" 0dB
+if amixer get Mic1 | grep -q "Capture \[off\]"; then amixer --quiet set "Mic1" toggle ; fi
+
+amixer --quiet set "Mic2" mute 
+amixer --quiet set "Mic2" 0%
+
+amixer --quiet set "Mic2 Boost" 0%
+
+amixer --quiet set "ADC Gain" 3dB
+amixer --quiet set "DAC" -- -16dB
+amixer --quiet set "DAC Reversed" mute
 
 chmod 777 /sys/class/gpio/export
 

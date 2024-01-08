@@ -316,13 +316,57 @@ class WS_AudioTXHandler(tornado.websocket.WebSocketHandler):
 		PTTset("false")
 		print('connection closed for TX socket')	
 
+############ Login ##############
+class AuthLoginHandler(BaseHandler):
+
+	def get(self):
+		if config['SERVER']['auth'] != "true":
+			self.redirect("/")
+			return
+		self.write('<html><body><form action="/login" method="post">'
+					'CallSign: <input type="text" name="name"></br>'
+					'Password: <input type="password" name="passwd"></br>'
+					'<input type="submit" value="Sign in">'
+					'</form></body></html>')
+
+	def post(self):
+		if self.get_argument("name") != "" and self.get_argument("passwd") != "":
+			if self.bind(self.get_argument("name"),self.get_argument("passwd")):
+				self.set_secure_cookie("user", self.get_argument("name"))
+				self.set_cookie("callsign", self.get_argument("name"))
+				self.set_cookie("autha", "1")
+		self.redirect("/")
+		
+	def bind(self,user="",password=""):
+		retval = False
+		if (user!="" and password!=""):
+			if (user==config['SERVER']['authlogin'] and password==config['SERVER']['authpassword']):
+				retval = True		
+		return retval
+		
+class AuthLogoutHandler(BaseHandler):
+	def get(self):
+		self.clear_cookie("user")
+		self.clear_cookie("autha")
+		self.redirect(self.get_argument("next", "/"))
+
 ############ Main ##############
 class MainHandler(BaseHandler):
 
 	def get(self):
-		self.application.settings.get("compiled_template_cache", False)
-		self.set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-		self.render("www/index.html")
+		if config['SERVER']['auth'] == "true":
+			print("Tornado current user:"+str(self.current_user))
+			if not self.current_user:
+				self.redirect("/login")
+				return
+			self.application.settings.get("compiled_template_cache", False)
+			self.set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+			self.render("www/index.html")
+		else:
+			self.application.settings.get("compiled_template_cache", False)
+			self.set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+			self.render("www/index.html")
+			return
 
 if __name__ == "__main__":
 
@@ -339,6 +383,7 @@ if __name__ == "__main__":
 		threadloadWavdata.start()
 		
 		app = tornado.web.Application([
+		(r'/login', AuthLoginHandler),
 		(r'/WSaudioRX', WS_AudioRXHandler),
 		(r'/WSaudioTX', WS_AudioTXHandler),
 		(r'/WSCTRX', WS_ControlTRX),

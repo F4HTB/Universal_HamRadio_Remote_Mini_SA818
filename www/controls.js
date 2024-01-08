@@ -28,6 +28,13 @@ function ControlTRX_start(){
 	wsControlTRX = new WebSocket( 'wss://' + window.location.href.split( '/' )[2] + '/WSCTRX' );
 	wsControlTRX.onmessage = wsControlTRXcrtol;
 	wsControlTRX.onopen = SA818_Control_Init;
+	wsControlTRX.onclose = wsControlTRXerror;
+	wsControlTRX.onerror = wsControlTRXerror;
+}
+
+function wsControlTRXerror(err){
+    wsControlTRX.close();
+	ControlTRX_start();
 }
 
 
@@ -48,6 +55,10 @@ function checklatency(delay) {
 		if ((wsControlTRX.readyState === WebSocket.OPEN) && (wsAudioRX.readyState === WebSocket.OPEN) && (wsAudioTX.readyState === WebSocket.OPEN)){
 			document.getElementById("container").style.borderColor="green";
 			delay=5000;
+		}else{
+			console.log("wsControlTRX:"+(wsControlTRX.readyState === WebSocket.OPEN));
+			console.log("wsAudioRX:"+(wsAudioRX.readyState === WebSocket.OPEN));
+			console.log("wsAudioTX:"+(wsAudioTX.readyState === WebSocket.OPEN));
 		}
 	}, delay);
 }
@@ -105,7 +116,7 @@ function SA818_Control_Init_Values(values){
 		const element = sa818ControlDiv.querySelector(`[id="${field}"]`);
 		if (element) {
 			if (element.type === 'checkbox') {
-				element.checked = (value === 'true');
+				element.checked = (value.toLowerCase() === 'true');
 			} else {
 				element.value = value;
 			}
@@ -286,7 +297,7 @@ function AudioRX_start(){
 					synth_buff[i] = AudioRX_audiobuffer[0][i];
 				}
 				if(le){AudioRX_audiobuffer.shift();}
-				if(AudioRX_audiobuffer.length > 10){AudioRX_audiobuffer = [];}
+				if(AudioRX_audiobuffer.length > 10){AudioRX_audiobuffer = [];AudioRX_audiobuffer.length = 0;}
 			}
 		};
 	}());
@@ -312,10 +323,13 @@ function AudioRX_SetGAIN( vol="None" ){
 }
 
 function wsAudioRXclose(){
+	console.log("wsAudioRXclose");
 	AudioRX_stop();
+	
 }
 
 function wsAudioRXerror(err){
+	console.log("wsAudioRXerror");
 	AudioRX_stop();
 }
 
@@ -697,11 +711,20 @@ function AudioTX_start()
 isRecording = false;
 encode = false;
 wsAudioTX = new WebSocket( 'wss://' + window.location.href.split( '/' )[2] + '/WSaudioTX' );
+wsAudioTX.onclose = wsAudioTXclose;
+wsAudioTX.onerror = wsAudioTXError;
 ap = new OpusEncoderProcessor( wsAudioTX );
 mh = new MediaHandler( ap );
 }
 
-function appendwsAudioTXError(err){
+function wsAudioTXError(err){
+	console.log("wsAudioTXError");
+    wsAudioTX.close();
+	AudioTX_start();
+}
+
+function wsAudioTXclose(){
+	console.log("wsAudioRXclose");
     wsAudioTX.close();
 	AudioTX_start();
 }
