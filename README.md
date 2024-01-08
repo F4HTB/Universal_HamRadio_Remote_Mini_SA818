@@ -7,7 +7,7 @@ PTT on gpio 7 on orange pi zero.
 Interface:
 ![UHRR_MINI_SA818_F4HTB_Interface](https://github.com/F4HTB/Universal_HamRadio_Remote_Mini_SA818/assets/18350938/3ddaa1da-b5ca-4acb-bb29-2f0456ce718b)
 
-<center><img src="https://boutique.spotnik.org/prestashop/24-large_default/spotnik-hot-spot-.jpg" width="200" height="200"></center>
+<img src="https://boutique.spotnik.org/prestashop/24-large_default/spotnik-hot-spot-.jpg" width="200" height="200">
 
 For installation on armbian:
 
@@ -26,7 +26,7 @@ or prefer:
 ```
 ./start.sh
 ```
-Start.sh include some tricks for GPIO and alsamixer configuration for orangie pi zero.
+start.sh include some tricks for GPIO and alsamixer configuration for orangie pi zero.
 
 
 Got to https://your_ip:8888
