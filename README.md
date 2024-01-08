@@ -4,9 +4,10 @@ Based on orange pi and <a href="https://f5nlg.wordpress.com">spotnik delta inerf
 
 PTT on gpio 7 on orange pi zero.
 
-![presentation_uhrr_mini](https://user-images.githubusercontent.com/18350938/140665583-052f302b-3b16-4c1a-9f73-4dac63e2f94d.png)
+Interface:
+![UHRR_MINI_SA818_F4HTB_Interface](https://github.com/F4HTB/Universal_HamRadio_Remote_Mini_SA818/assets/18350938/3ddaa1da-b5ca-4acb-bb29-2f0456ce718b)
 
-![uhrrm_uv5r_spotnik](https://boutique.spotnik.org/prestashop/24-large_default/spotnik-hot-spot-.jpg)
+![uhrrm_uv5r_spotnik](https://boutique.spotnik.org/prestashop/24-large_default/spotnik-hot-spot-.jpg =250x250)
 
 For installation on armbian:
 
@@ -33,8 +34,6 @@ For hardware see :
 http://docs.rrf.ovh/spotnik/ciSpotnik/delta/
 https://boutique.spotnik.org/prestashop/fr/kits-a-monter/30-hummingbird-printed-t-shirt.html
 
-Interface:
-![UHRR_MINI_SA818_F4HTB_Interface](https://github.com/F4HTB/Universal_HamRadio_Remote_Mini_SA818/assets/18350938/3ddaa1da-b5ca-4acb-bb29-2f0456ce718b)
 
 Config file:
 
