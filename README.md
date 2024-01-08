@@ -32,3 +32,46 @@ Clic somewhere on page to start the connection.
 For hardware see :
 http://docs.rrf.ovh/spotnik/ciSpotnik/delta/
 https://boutique.spotnik.org/prestashop/fr/kits-a-monter/30-hummingbird-printed-t-shirt.html
+
+Interface:
+![UHRR_MINI_SA818_F4HTB_Interface](https://github.com/F4HTB/Universal_HamRadio_Remote_Mini_SA818/assets/18350938/3ddaa1da-b5ca-4acb-bb29-2f0456ce718b)
+
+Config file:
+
+```
+[SERVER]
+yournameserver = TESTNAME
+port = 8888
+certfile = UHRRM.crt
+keyfile = UHRRM.key
+cookie_secret = L8LwECiNRxq2N0N2eGxx9MZlrpmuMEimlydNX/vt1LM=
+log_file = UHRRM.log
+debug = true
+auth = false
+authlogin = operator
+authpassword = operator
+
+[AUDIO]
+outputdevice = plughw:CARD=Codec,DEV=0
+inputdevice = plughw:CARD=Codec,DEV=0
+
+[OrangePI]
+pttgpio = 7
+rxgpio = 10
+
+[SA818]
+bw = 0
+frequency = 432.5000
+offset = 0.0000
+squelch = 2
+ctcss = None
+dcs = 0
+level = 4
+emphasis = false
+highpass = true
+lowpass = true
+serial = /dev/ttyS2
+rate = 9600
+scan_frequencies = 145.4000,432.9750,432.5000
+scan_waittondetect = 5
+```
