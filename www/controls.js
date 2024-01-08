@@ -6,9 +6,17 @@ function handlePageClick(event) {
 	document.removeEventListener('click', handlePageClick);
 }
 
+var WSGlobKey = ""
 function bodyload(){
-	var sa818ControlDiv = document.getElementById('SA818_control');
-	var inputAndSelectElements = sa818ControlDiv.querySelectorAll('input, select');
+	
+	document.cookie.split(";").forEach(function(element) {
+		element = element.trim();
+		if (element.indexOf("keykey=") === 0) {
+			WSGlobKey = element.substring("keykey=".length, element.length);
+		}
+	});
+	
+	var inputAndSelectElements = document.getElementById('SA818_control').querySelectorAll('input, select');
 	for (var i = 0; i < inputAndSelectElements.length; i++) {
 		inputAndSelectElements[i].disabled = true;
 	}
@@ -25,23 +33,31 @@ function bodyload(){
 var wsControlTRX = "";
 
 function ControlTRX_start(){
-	wsControlTRX = new WebSocket( 'wss://' + window.location.href.split( '/' )[2] + '/WSCTRX' );
-	wsControlTRX.onmessage = wsControlTRXcrtol;
+	wsControlTRX = new WebSocket( 'wss://' + window.location.href.split( '/' )[2] + '/WSCTRX?keykey='+WSGlobKey );
 	wsControlTRX.onopen = SA818_Control_Init;
-	wsControlTRX.onclose = wsControlTRXerror;
+	wsControlTRX.onmessage = wsControlTRXcrtol;
+	wsControlTRX.onclose = wsControlTRXclose;
 	wsControlTRX.onerror = wsControlTRXerror;
 }
 
-function wsControlTRXerror(err){
-    wsControlTRX.close();
-	ControlTRX_start();
+function wsControlTRXclose(){
+	console.log("wsAudioRXclose");
+	wsControlTRX.close();
 }
 
+function wsControlTRXerror(err){
+	console.log("wsControlTRX");
+	wsControlTRX.close();
+	setTimeout(function () {
+		ControlTRX_start();
+	}, 5000);
+}
 
+var mess = "";
 function wsControlTRXcrtol( msg ){
 	words = String(msg.data).split(':');
 	if(words[0] == "PONG"){showlatency();}
-	else if(words[0] == "ENT"){document.getElementById("mess").textContent = "UHRR Mini - "+words[1];console.log(words[1]);}
+	else if(words[0] == "ENT"){mess = words[1];console.log(words[1]);}
 	else if(words[0] == "getCONFIG"){SA818_Control_Init_Values(words[1]);}
 	else if(words[0] == "getscanFREQS"){Receive_scan_frequencies(words[1]);}
 	else if(words[0] == "scanFREQ"){Scan_frequencies(words[1]);}
@@ -54,11 +70,15 @@ function checklatency(delay) {
 		if (wsControlTRX.readyState === WebSocket.OPEN) {wsControlTRX.send("PING");checklatency(delay);}
 		if ((wsControlTRX.readyState === WebSocket.OPEN) && (wsAudioRX.readyState === WebSocket.OPEN) && (wsAudioTX.readyState === WebSocket.OPEN)){
 			document.getElementById("container").style.borderColor="green";
+			document.getElementById("mess").textContent = "UHRR Mini - "+ mess;
 			delay=5000;
 		}else{
 			console.log("wsControlTRX:"+(wsControlTRX.readyState === WebSocket.OPEN));
 			console.log("wsAudioRX:"+(wsAudioRX.readyState === WebSocket.OPEN));
 			console.log("wsAudioTX:"+(wsAudioTX.readyState === WebSocket.OPEN));
+			document.getElementById("container").style.borderColor="red";
+			document.getElementById("mess").textContent = "UHRR Mini<br>Click anywhere to connect.";
+			document.addEventListener('click', handlePageClick);
 		}
 	}, delay);
 }
@@ -98,11 +118,13 @@ function TXtoggle(state="None")
 	AudioRX_audiobuffer = [];
 }
 
-  function sendInputData(name, value) {
-    if (typeof wsControlTRX !== 'undefined' && wsControlTRX.readyState === WebSocket.OPEN) {
-      wsControlTRX.send("setCONFIG:"+name+"="+value);
-    }
-  }
+
+
+function sendInputData(name, value) {
+	if (typeof wsControlTRX !== 'undefined' && wsControlTRX.readyState === WebSocket.OPEN) {
+	  wsControlTRX.send("setCONFIG:"+name+"="+value);
+	}
+}
 
 //SA818 control routines///////////////////////////////////////////////////////////////////////////
 
@@ -163,37 +185,37 @@ function validateFrequencyAndOffsetFields() {
   frequencyInput.style.background = '';
   offsetInput.style.background = '';
   if ((frequencyValue >= 144 && frequencyValue <= 148) || (frequencyValue >= 420 && frequencyValue <= 450)) {
-    frequencyInput.value = frequencyValue.toFixed(4);
+	frequencyInput.value = frequencyValue.toFixed(4);
   } else {
-    frequencyInput.style.background = 'red';
-    frequencyInput.title = 'La fréquence doit être entre 144 et 148 ou entre 420 et 450.';
+	frequencyInput.style.background = 'red';
+	frequencyInput.title = 'La fréquence doit être entre 144 et 148 ou entre 420 et 450.';
   }
   if ((frequencyValue + offsetValue >= 144 && frequencyValue + offsetValue <= 148) || (frequencyValue + offsetValue >= 420 && frequencyValue + offsetValue <= 450)) {
-    offsetInput.value = offsetValue.toFixed(4);
+	offsetInput.value = offsetValue.toFixed(4);
   } else {
-    offsetInput.style.background = 'red';
-    offsetInput.title = 'La somme de la fréquence et de l\'offset doit être entre 144 et 148 ou entre 420 et 450.';
+	offsetInput.style.background = 'red';
+	offsetInput.title = 'La somme de la fréquence et de l\'offset doit être entre 144 et 148 ou entre 420 et 450.';
   }
 }
 
 function validateLinesInTextAreaFS(e) {
 		var textarea = e.target || e.srcElement;
-        const checkbox = document.getElementById('Scan_frequencies_toggle');
+		const checkbox = document.getElementById('Scan_frequencies_toggle');
 
-        const lines = textarea.value.split('\n');
-        let allLinesValid = true;
+		const lines = textarea.value.split('\n');
+		let allLinesValid = true;
 		
 const formattedLines = lines
-    .map(line => {
-        const trimmedLine = line.trim();
+	.map(line => {
+		const trimmedLine = line.trim();
 
-        if (trimmedLine !== '' && /^-?\d+(\.\d+)?$/.test(trimmedLine)) {
-            return parseFloat(trimmedLine).toFixed(4);
-        } else {
-            return null; 
-        }
-    })
-    .filter(Boolean); 
+		if (trimmedLine !== '' && /^-?\d+(\.\d+)?$/.test(trimmedLine)) {
+			return parseFloat(trimmedLine).toFixed(4);
+		} else {
+			return null; 
+		}
+	})
+	.filter(Boolean); 
 
 
 	textarea.value = formattedLines.join('\n');
@@ -269,7 +291,7 @@ var AudioRX_sampleRate=8000;
 function AudioRX_start(){
 	AudioRX_audiobuffer = [];
 
-	wsAudioRX = new WebSocket( 'wss://' + window.location.href.split( '/' )[2] + '/WSaudioRX' );
+	wsAudioRX = new WebSocket( 'wss://' + window.location.href.split( '/' )[2] + '/WSaudioRX?keykey='+WSGlobKey );
 	wsAudioRX.binaryType = 'arraybuffer';
 	wsAudioRX.onmessage = appendwsAudioRX;
 	wsAudioRX.onclose = wsAudioRXclose;
@@ -325,12 +347,14 @@ function AudioRX_SetGAIN( vol="None" ){
 function wsAudioRXclose(){
 	console.log("wsAudioRXclose");
 	AudioRX_stop();
-	
 }
 
 function wsAudioRXerror(err){
 	console.log("wsAudioRXerror");
 	AudioRX_stop();
+	setTimeout(function () {
+		AudioRX_start();
+	}, 5000);
 }
 
 function AudioRX_stop()
@@ -394,214 +418,214 @@ var Ca=[Lj,Ri,Qi,Lj];return{_opus_get_version_string:qb,_free:rj,_opus_encode_fl
 
 var OpusApplication;
 (function (OpusApplication) {
-    OpusApplication[OpusApplication["VoIP"] = 2048] = "VoIP";
-    OpusApplication[OpusApplication["Audio"] = 2049] = "Audio";
-    OpusApplication[OpusApplication["RestrictedLowDelay"] = 2051] = "RestrictedLowDelay";
+	OpusApplication[OpusApplication["VoIP"] = 2048] = "VoIP";
+	OpusApplication[OpusApplication["Audio"] = 2049] = "Audio";
+	OpusApplication[OpusApplication["RestrictedLowDelay"] = 2051] = "RestrictedLowDelay";
 })(OpusApplication || (OpusApplication = {}));
 var OpusError;
 (function (OpusError) {
-    OpusError[OpusError["OK"] = 0] = "OK";
-    OpusError[OpusError["BadArgument"] = -1] = "BadArgument";
-    OpusError[OpusError["BufferTooSmall"] = -2] = "BufferTooSmall";
-    OpusError[OpusError["InternalError"] = -3] = "InternalError";
-    OpusError[OpusError["InvalidPacket"] = -4] = "InvalidPacket";
-    OpusError[OpusError["Unimplemented"] = -5] = "Unimplemented";
-    OpusError[OpusError["InvalidState"] = -6] = "InvalidState";
-    OpusError[OpusError["AllocFail"] = -7] = "AllocFail";
+	OpusError[OpusError["OK"] = 0] = "OK";
+	OpusError[OpusError["BadArgument"] = -1] = "BadArgument";
+	OpusError[OpusError["BufferTooSmall"] = -2] = "BufferTooSmall";
+	OpusError[OpusError["InternalError"] = -3] = "InternalError";
+	OpusError[OpusError["InvalidPacket"] = -4] = "InvalidPacket";
+	OpusError[OpusError["Unimplemented"] = -5] = "Unimplemented";
+	OpusError[OpusError["InvalidState"] = -6] = "InvalidState";
+	OpusError[OpusError["AllocFail"] = -7] = "AllocFail";
 })(OpusError || (OpusError = {}));
 var Opus = (function () {
-    function Opus() {
-    }
-    Opus.getVersion = function () {
-        var ptr = _opus_get_version_string();
-        return Pointer_stringify(ptr);
-    };
-    Opus.getMaxFrameSize = function (numberOfStreams) {
-        if (numberOfStreams === void 0) { numberOfStreams = 1; }
-        return (1275 * 3 + 7) * numberOfStreams;
-    };
-    Opus.getMinFrameDuration = function () {
-        return 2.5;
-    };
-    Opus.getMaxFrameDuration = function () {
-        return 60;
-    };
-    Opus.validFrameDuration = function (x) {
-        return [2.5, 5, 10, 20, 40, 60].some(function (element) {
-            return element == x;
-        });
-    };
-    Opus.getMaxSamplesPerChannel = function (sampling_rate) {
-        return sampling_rate / 1000 * Opus.getMaxFrameDuration();
-    };
-    return Opus;
+	function Opus() {
+	}
+	Opus.getVersion = function () {
+		var ptr = _opus_get_version_string();
+		return Pointer_stringify(ptr);
+	};
+	Opus.getMaxFrameSize = function (numberOfStreams) {
+		if (numberOfStreams === void 0) { numberOfStreams = 1; }
+		return (1275 * 3 + 7) * numberOfStreams;
+	};
+	Opus.getMinFrameDuration = function () {
+		return 2.5;
+	};
+	Opus.getMaxFrameDuration = function () {
+		return 60;
+	};
+	Opus.validFrameDuration = function (x) {
+		return [2.5, 5, 10, 20, 40, 60].some(function (element) {
+			return element == x;
+		});
+	};
+	Opus.getMaxSamplesPerChannel = function (sampling_rate) {
+		return sampling_rate / 1000 * Opus.getMaxFrameDuration();
+	};
+	return Opus;
 })();
 
 var OpusEncoder = (function () {
-    function OpusEncoder(sampling_rate, channels, app, frame_duration) {
-        if (frame_duration === void 0) { frame_duration = 20; }
-        this.handle = 0;
-        this.frame_size = 0;
-        this.in_ptr = 0;
-        this.in_off = 0;
-        this.out_ptr = 0;
-        if (!Opus.validFrameDuration(frame_duration))
-            throw 'invalid frame duration';
-        this.frame_size = sampling_rate * frame_duration / 1000;
-        var err_ptr = allocate(4, 'i32', ALLOC_STACK);
-        this.handle = _opus_encoder_create(sampling_rate, channels, app, err_ptr);
-        if (getValue(err_ptr, 'i32') != 0 /* OK */)
-            throw 'opus_encoder_create failed: ' + getValue(err_ptr, 'i32');
-        this.in_ptr = _malloc(this.frame_size * channels * 4);
-        this.in_len = this.frame_size * channels;
-        this.in_i16 = HEAP16.subarray(this.in_ptr >> 1, (this.in_ptr >> 1) + this.in_len);
-        this.in_f32 = HEAPF32.subarray(this.in_ptr >> 2, (this.in_ptr >> 2) + this.in_len);
-        this.out_bytes = Opus.getMaxFrameSize();
-        this.out_ptr = _malloc(this.out_bytes);
-        this.out_buf = HEAPU8.subarray(this.out_ptr, this.out_ptr + this.out_bytes);
-    }
-    OpusEncoder.prototype.encode = function (pcm) {
-        var output = [];
-        var pcm_off = 0;
-        while (pcm.length - pcm_off >= this.in_len - this.in_off) {
-            if (this.in_off > 0) {
-                this.in_i16.set(pcm.subarray(pcm_off, pcm_off + this.in_len - this.in_off), this.in_off);
-                pcm_off += this.in_len - this.in_off;
-                this.in_off = 0;
-            }
-            else {
-                this.in_i16.set(pcm.subarray(pcm_off, pcm_off + this.in_len));
-                pcm_off += this.in_len;
-            }
-            var ret = _opus_encode(this.handle, this.in_ptr, this.frame_size, this.out_ptr, this.out_bytes);
-            if (ret <= 0)
-                throw 'opus_encode failed: ' + ret;
-            var packet = new ArrayBuffer(ret);
-            new Uint8Array(packet).set(this.out_buf.subarray(0, ret));
-            output.push(packet);
-        }
-        if (pcm_off < pcm.length) {
-            this.in_i16.set(pcm.subarray(pcm_off));
-            this.in_off = pcm.length - pcm_off;
-        }
-        return output;
-    };
-    OpusEncoder.prototype.encode_float = function (pcm) {
-        var output = [];
-        var pcm_off = 0;
-        while (pcm.length - pcm_off >= this.in_len - this.in_off) {
-            if (this.in_off > 0) {
-                this.in_f32.set(pcm.subarray(pcm_off, pcm_off + this.in_len - this.in_off), this.in_off);
-                pcm_off += this.in_len - this.in_off;
-                this.in_off = 0;
-            }
-            else {
-                this.in_f32.set(pcm.subarray(pcm_off, pcm_off + this.in_len));
-                pcm_off += this.in_len;
-            }
-            var ret = _opus_encode_float(this.handle, this.in_ptr, this.frame_size, this.out_ptr, this.out_bytes);
-            if (ret <= 0)
-                throw 'opus_encode failed: ' + ret;
-            var packet = new ArrayBuffer(ret);
-            new Uint8Array(packet).set(this.out_buf.subarray(0, ret));
-            output.push(packet);
-        }
-        if (pcm_off < pcm.length) {
-            this.in_f32.set(pcm.subarray(pcm_off));
-            this.in_off = pcm.length - pcm_off;
-        }
-        return output;
-    };
-    OpusEncoder.prototype.encode_final = function () {
-        if (this.in_off == 0)
-            return new ArrayBuffer(0);
-        for (var i = this.in_off; i < this.in_len; ++i)
-            this.in_i16[i] = 0;
-        var ret = _opus_encode(this.handle, this.in_ptr, this.frame_size, this.out_ptr, this.out_bytes);
-        if (ret <= 0)
-            throw 'opus_encode failed: ' + ret;
-        var packet = new ArrayBuffer(ret);
-        new Uint8Array(packet).set(this.out_buf.subarray(0, ret));
-        return packet;
-    };
-    OpusEncoder.prototype.encode_float_final = function () {
-        if (this.in_off == 0)
-            return new ArrayBuffer(0);
-        for (var i = this.in_off; i < this.in_len; ++i)
-            this.in_f32[i] = 0;
-        var ret = _opus_encode_float(this.handle, this.in_ptr, this.frame_size, this.out_ptr, this.out_bytes);
-        if (ret <= 0)
-            throw 'opus_encode failed: ' + ret;
-        var packet = new ArrayBuffer(ret);
-        new Uint8Array(packet).set(this.out_buf.subarray(0, ret));
-        return packet;
-    };
-    OpusEncoder.prototype.destroy = function () {
-        if (!this.handle)
-            return;
-        _opus_encoder_destroy(this.handle);
-        _free(this.in_ptr);
-        this.handle = this.in_ptr = 0;
-    };
-    return OpusEncoder;
+	function OpusEncoder(sampling_rate, channels, app, frame_duration) {
+		if (frame_duration === void 0) { frame_duration = 20; }
+		this.handle = 0;
+		this.frame_size = 0;
+		this.in_ptr = 0;
+		this.in_off = 0;
+		this.out_ptr = 0;
+		if (!Opus.validFrameDuration(frame_duration))
+			throw 'invalid frame duration';
+		this.frame_size = sampling_rate * frame_duration / 1000;
+		var err_ptr = allocate(4, 'i32', ALLOC_STACK);
+		this.handle = _opus_encoder_create(sampling_rate, channels, app, err_ptr);
+		if (getValue(err_ptr, 'i32') != 0 /* OK */)
+			throw 'opus_encoder_create failed: ' + getValue(err_ptr, 'i32');
+		this.in_ptr = _malloc(this.frame_size * channels * 4);
+		this.in_len = this.frame_size * channels;
+		this.in_i16 = HEAP16.subarray(this.in_ptr >> 1, (this.in_ptr >> 1) + this.in_len);
+		this.in_f32 = HEAPF32.subarray(this.in_ptr >> 2, (this.in_ptr >> 2) + this.in_len);
+		this.out_bytes = Opus.getMaxFrameSize();
+		this.out_ptr = _malloc(this.out_bytes);
+		this.out_buf = HEAPU8.subarray(this.out_ptr, this.out_ptr + this.out_bytes);
+	}
+	OpusEncoder.prototype.encode = function (pcm) {
+		var output = [];
+		var pcm_off = 0;
+		while (pcm.length - pcm_off >= this.in_len - this.in_off) {
+			if (this.in_off > 0) {
+				this.in_i16.set(pcm.subarray(pcm_off, pcm_off + this.in_len - this.in_off), this.in_off);
+				pcm_off += this.in_len - this.in_off;
+				this.in_off = 0;
+			}
+			else {
+				this.in_i16.set(pcm.subarray(pcm_off, pcm_off + this.in_len));
+				pcm_off += this.in_len;
+			}
+			var ret = _opus_encode(this.handle, this.in_ptr, this.frame_size, this.out_ptr, this.out_bytes);
+			if (ret <= 0)
+				throw 'opus_encode failed: ' + ret;
+			var packet = new ArrayBuffer(ret);
+			new Uint8Array(packet).set(this.out_buf.subarray(0, ret));
+			output.push(packet);
+		}
+		if (pcm_off < pcm.length) {
+			this.in_i16.set(pcm.subarray(pcm_off));
+			this.in_off = pcm.length - pcm_off;
+		}
+		return output;
+	};
+	OpusEncoder.prototype.encode_float = function (pcm) {
+		var output = [];
+		var pcm_off = 0;
+		while (pcm.length - pcm_off >= this.in_len - this.in_off) {
+			if (this.in_off > 0) {
+				this.in_f32.set(pcm.subarray(pcm_off, pcm_off + this.in_len - this.in_off), this.in_off);
+				pcm_off += this.in_len - this.in_off;
+				this.in_off = 0;
+			}
+			else {
+				this.in_f32.set(pcm.subarray(pcm_off, pcm_off + this.in_len));
+				pcm_off += this.in_len;
+			}
+			var ret = _opus_encode_float(this.handle, this.in_ptr, this.frame_size, this.out_ptr, this.out_bytes);
+			if (ret <= 0)
+				throw 'opus_encode failed: ' + ret;
+			var packet = new ArrayBuffer(ret);
+			new Uint8Array(packet).set(this.out_buf.subarray(0, ret));
+			output.push(packet);
+		}
+		if (pcm_off < pcm.length) {
+			this.in_f32.set(pcm.subarray(pcm_off));
+			this.in_off = pcm.length - pcm_off;
+		}
+		return output;
+	};
+	OpusEncoder.prototype.encode_final = function () {
+		if (this.in_off == 0)
+			return new ArrayBuffer(0);
+		for (var i = this.in_off; i < this.in_len; ++i)
+			this.in_i16[i] = 0;
+		var ret = _opus_encode(this.handle, this.in_ptr, this.frame_size, this.out_ptr, this.out_bytes);
+		if (ret <= 0)
+			throw 'opus_encode failed: ' + ret;
+		var packet = new ArrayBuffer(ret);
+		new Uint8Array(packet).set(this.out_buf.subarray(0, ret));
+		return packet;
+	};
+	OpusEncoder.prototype.encode_float_final = function () {
+		if (this.in_off == 0)
+			return new ArrayBuffer(0);
+		for (var i = this.in_off; i < this.in_len; ++i)
+			this.in_f32[i] = 0;
+		var ret = _opus_encode_float(this.handle, this.in_ptr, this.frame_size, this.out_ptr, this.out_bytes);
+		if (ret <= 0)
+			throw 'opus_encode failed: ' + ret;
+		var packet = new ArrayBuffer(ret);
+		new Uint8Array(packet).set(this.out_buf.subarray(0, ret));
+		return packet;
+	};
+	OpusEncoder.prototype.destroy = function () {
+		if (!this.handle)
+			return;
+		_opus_encoder_destroy(this.handle);
+		_free(this.in_ptr);
+		this.handle = this.in_ptr = 0;
+	};
+	return OpusEncoder;
 })();
 var OpusDecoder = (function () {
-    function OpusDecoder(sampling_rate, channels) {
-        this.handle = 0;
-        this.in_ptr = 0;
-        this.out_ptr = 0;
-        this.channels = channels;
-        var err_ptr = allocate(4, 'i32', ALLOC_STACK);
-        this.handle = _opus_decoder_create(sampling_rate, channels, err_ptr);
-        if (getValue(err_ptr, 'i32') != 0 /* OK */)
-            throw 'opus_decoder_create failed: ' + getValue(err_ptr, 'i32');
-        this.in_ptr = _malloc(Opus.getMaxFrameSize(channels));
-        this.in_buf = HEAPU8.subarray(this.in_ptr, this.in_ptr + Opus.getMaxFrameSize(channels));
-        this.out_len = Opus.getMaxSamplesPerChannel(sampling_rate);
-        var out_bytes = this.out_len * channels * 4;
-        this.out_ptr = _malloc(out_bytes);
-        this.out_i16 = HEAP16.subarray(this.out_ptr >> 1, (this.out_ptr + out_bytes) >> 1);
-        this.out_f32 = HEAPF32.subarray(this.out_ptr >> 2, (this.out_ptr + out_bytes) >> 2);
-    }
-    OpusDecoder.prototype.decode = function (packet) {
-        this.in_buf.set(new Uint8Array(packet));
-        var ret = _opus_decode(this.handle, this.in_ptr, packet.byteLength, this.out_ptr, this.out_len, 0);
-        if (ret < 0)
-            throw 'opus_decode failed: ' + ret;
-        var samples = new Int16Array(ret * this.channels);
-        samples.set(this.out_i16.subarray(0, samples.length));
-        return samples;
-    };
-    OpusDecoder.prototype.decode_float = function (packet) {
-        this.in_buf.set(new Uint8Array(packet));
-        var ret = _opus_decode_float(this.handle, this.in_ptr, packet.byteLength, this.out_ptr, this.out_len, 0);
-        if (ret < 0)
-            throw 'opus_decode failed: ' + ret;
-        var samples = new Float32Array(ret * this.channels);
-        samples.set(this.out_f32.subarray(0, samples.length));
-        return samples;
-    };
-    OpusDecoder.prototype.destroy = function () {
-        if (!this.handle)
-            return;
-        _opus_decoder_destroy(this.handle);
-        _free(this.in_ptr);
-        _free(this.out_ptr);
-        this.handle = this.in_ptr = this.out_ptr = 0;
-    };
-    return OpusDecoder;
+	function OpusDecoder(sampling_rate, channels) {
+		this.handle = 0;
+		this.in_ptr = 0;
+		this.out_ptr = 0;
+		this.channels = channels;
+		var err_ptr = allocate(4, 'i32', ALLOC_STACK);
+		this.handle = _opus_decoder_create(sampling_rate, channels, err_ptr);
+		if (getValue(err_ptr, 'i32') != 0 /* OK */)
+			throw 'opus_decoder_create failed: ' + getValue(err_ptr, 'i32');
+		this.in_ptr = _malloc(Opus.getMaxFrameSize(channels));
+		this.in_buf = HEAPU8.subarray(this.in_ptr, this.in_ptr + Opus.getMaxFrameSize(channels));
+		this.out_len = Opus.getMaxSamplesPerChannel(sampling_rate);
+		var out_bytes = this.out_len * channels * 4;
+		this.out_ptr = _malloc(out_bytes);
+		this.out_i16 = HEAP16.subarray(this.out_ptr >> 1, (this.out_ptr + out_bytes) >> 1);
+		this.out_f32 = HEAPF32.subarray(this.out_ptr >> 2, (this.out_ptr + out_bytes) >> 2);
+	}
+	OpusDecoder.prototype.decode = function (packet) {
+		this.in_buf.set(new Uint8Array(packet));
+		var ret = _opus_decode(this.handle, this.in_ptr, packet.byteLength, this.out_ptr, this.out_len, 0);
+		if (ret < 0)
+			throw 'opus_decode failed: ' + ret;
+		var samples = new Int16Array(ret * this.channels);
+		samples.set(this.out_i16.subarray(0, samples.length));
+		return samples;
+	};
+	OpusDecoder.prototype.decode_float = function (packet) {
+		this.in_buf.set(new Uint8Array(packet));
+		var ret = _opus_decode_float(this.handle, this.in_ptr, packet.byteLength, this.out_ptr, this.out_len, 0);
+		if (ret < 0)
+			throw 'opus_decode failed: ' + ret;
+		var samples = new Float32Array(ret * this.channels);
+		samples.set(this.out_f32.subarray(0, samples.length));
+		return samples;
+	};
+	OpusDecoder.prototype.destroy = function () {
+		if (!this.handle)
+			return;
+		_opus_decoder_destroy(this.handle);
+		_free(this.in_ptr);
+		_free(this.out_ptr);
+		this.handle = this.in_ptr = this.out_ptr = 0;
+	};
+	return OpusDecoder;
 })();
 
 var OpusEncoderProcessor = function( wsh )
 {
-    this.wsh = wsh;
-    this.bufferSize = 4096; // for webaudio script processor
-    this.downSample = 2;
-    this.opusFrameDur = 60; // msec
-    this.opusRate = 24000;
-    this.i16arr = new Int16Array( this.bufferSize / this.downSample );
-    this.f32arr = new Float32Array( this.bufferSize / this.downSample );
-    this.opusEncoder = new OpusEncoder( this.opusRate, 1, 2049, this.opusFrameDur );
+	this.wsh = wsh;
+	this.bufferSize = 4096; // for webaudio script processor
+	this.downSample = 2;
+	this.opusFrameDur = 60; // msec
+	this.opusRate = 24000;
+	this.i16arr = new Int16Array( this.bufferSize / this.downSample );
+	this.f32arr = new Float32Array( this.bufferSize / this.downSample );
+	this.opusEncoder = new OpusEncoder( this.opusRate, 1, 2049, this.opusFrameDur );
 }
 
 
@@ -610,89 +634,88 @@ OpusEncoderProcessor.prototype.onAudioProcess = function( e )
 	this.instant = 0.0;
 	const that = this;
 	
-    if( isRecording )
-    {
+	if( isRecording )
+	{
 	var data = e.inputBuffer.getChannelData( 0 )
 	var i = 0, ds = this.downSample;
 	
 	if( encode )
 	{
-	    for( var idx = 0; idx < data.length; idx += ds )
+		for( var idx = 0; idx < data.length; idx += ds )
 		this.f32arr[ i++ ] = data[ idx ]/10;
 
-	    var res = this.opusEncoder.encode_float( this.f32arr );
+		var res = this.opusEncoder.encode_float( this.f32arr );
 
-	    for( var idx = 0; idx < res.length; ++idx )
+		for( var idx = 0; idx < res.length; ++idx )
 		this.wsh.send( res[ idx ] );
 	}
 	else
 	{
-	    for( var idx = 0; idx < data.length; idx += ds )
+		for( var idx = 0; idx < data.length; idx += ds )
 		this.i16arr[ i++ ] = (data[ idx ] /10) * 0xFFFF; // int16
 
-	    this.wsh.send( this.i16arr );
+		this.wsh.send( this.i16arr );
 	}
 	
 	let u;
-    let sum = 0.0;
-    let clipcount = 0;
-    for (u = 0; u < data.length; ++u) {
-      sum += data[u] * data[u];
-      if (Math.abs(data[u]) > 0.99) {
-        clipcount += 1;
-      }
-    }
+	let sum = 0.0;
+	let clipcount = 0;
+	for (u = 0; u < data.length; ++u) {
+	  sum += data[u] * data[u];
+	  if (Math.abs(data[u]) > 0.99) {
+		clipcount += 1;
+	  }
+	}
 	if(clipcount > 5){
 		blikcritik("TX-GAIN_control");
 	}
-    that.instant = Math.sqrt(sum / data.length);
+	that.instant = Math.sqrt(sum / data.length);
 	TXinstantMeter.value = that.instant*100;
-    }
+	}
 
 }
 
 var MediaHandler = function( audioProcessor )
 {
-    var context = new (window.AudioContext||window.webkitAudioContext)();
-    if( !context.createScriptProcessor )
+	var context = new (window.AudioContext||window.webkitAudioContext)();
+	if( !context.createScriptProcessor )
 	context.createScriptProcessor = context.createJavaScriptNode;
 
-    if( context.sampleRate < 44000 || context.SampleRate > 50000 )
-    {
+	if( context.sampleRate < 44000 || context.SampleRate > 50000 )
+	{
 	alert( "Unsupported sample rate: " + String( context.sampleRate ) );
 	return;
-    };
+	};
 
-    //initialize mic
-    navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
-    
-    this.context = context;
-    this.audioProcessor = audioProcessor;
-    var userMediaConfig = {
+	//initialize mic
+	navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+	
+	this.context = context;
+	this.audioProcessor = audioProcessor;
+	var userMediaConfig = {
 	"audio": {
-	    "mandatory": {},
-	    "optional": []
+		"mandatory": {},
+		"optional": []
 	}
-    }
-    
-    navigator.getUserMedia( userMediaConfig, this.callback.bind( this ), this.error );
+	}
+	navigator.mediaDevices.getUserMedia(userMediaConfig).then(stream => this.callback.call(this, stream)).catch(error => this.error(error));
 }
 
 var AudioTX_analyser = "";
 
 MediaHandler.prototype.callback = function( stream )
 {
-    console.log( 'starting callback' );
+	console.log( 'starting callback' );
 	AudioTX_analyser = this.context.createAnalyser();
 	this.gain_node = this.context.createGain();
-    this.micSource = this.context.createMediaStreamSource( stream );
-    this.processor = this.context.createScriptProcessor( this.audioProcessor.bufferSize, 1, 1 );
-    this.processor.onaudioprocess = this.audioProcessor.onAudioProcess.bind( this.audioProcessor );
-    this.micSource.connect( this.gain_node );
+	this.micSource = this.context.createMediaStreamSource( stream );
+	this.processor = this.context.createScriptProcessor( this.audioProcessor.bufferSize, 1, 1 );
+	this.processor.onaudioprocess = this.audioProcessor.onAudioProcess.bind( this.audioProcessor );
+	this.micSource.connect( this.gain_node );
 	this.gain_node.connect( this.processor );
-    this.processor.connect( this.context.destination );
+	this.processor.connect( this.context.destination );
 	this.gain_node.connect( AudioTX_analyser );
-    console.log( 'ending callback' );
+	console.log( 'ending callback' );
 }
 
 
@@ -710,65 +733,66 @@ function AudioTX_start()
 {
 isRecording = false;
 encode = false;
-wsAudioTX = new WebSocket( 'wss://' + window.location.href.split( '/' )[2] + '/WSaudioTX' );
+wsAudioTX = new WebSocket( 'wss://' + window.location.href.split( '/' )[2] + '/WSaudioTX?keykey='+WSGlobKey );
 wsAudioTX.onclose = wsAudioTXclose;
 wsAudioTX.onerror = wsAudioTXError;
 ap = new OpusEncoderProcessor( wsAudioTX );
 mh = new MediaHandler( ap );
 }
 
-function wsAudioTXError(err){
-	console.log("wsAudioTXError");
-    wsAudioTX.close();
-	AudioTX_start();
+function wsAudioTXclose(){
+	console.log("wsAudioTXclose");
+	AudioTX_stop();
 }
 
-function wsAudioTXclose(){
-	console.log("wsAudioRXclose");
-    wsAudioTX.close();
-	AudioTX_start();
+function wsAudioTXError(err){
+	console.log("wsAudioTXerror");
+	AudioTX_stop();
+	setTimeout(function () {
+		AudioTX_start();
+	}, 5000);
 }
 
 function AudioTX_stop()
 {
-isRecording = false;
-encode = false;
-wsAudioTX.close();
-ap = "";
-mh = "";
+	isRecording = false;
+	encode = false;
+	wsAudioTX.close();
+	ap = "";
+	mh = "";
 }
 
 function sendSettings()
 {
 	encode = 0;
 
-    var rate = String( mh.context.sampleRate / ap.downSample );
-    var opusRate = String( ap.opusRate );
-    var opusFrameDur = String( ap.opusFrameDur )
+	var rate = String( mh.context.sampleRate / ap.downSample );
+	var opusRate = String( ap.opusRate );
+	var opusFrameDur = String( ap.opusFrameDur )
 
-    var msg = "m:" + [ rate, encode, opusRate, opusFrameDur ].join( "," );
-    console.log( msg );
-    wsAudioTX.send( msg );
+	var msg = "m:" + [ rate, encode, opusRate, opusFrameDur ].join( "," );
+	console.log( msg );
+	wsAudioTX.send( msg );
 }
 
 function startRecord()
 {
-    mh.context.resume(); // needs an await?
-    sendSettings();
-    isRecording = true;
-    console.log( 'started recording' );
+	mh.context.resume(); // needs an await?
+	sendSettings();
+	isRecording = true;
+	console.log( 'started recording' );
 }
 
 function stopRecord()
 {
 	TXinstantMeter.value = 0;
 	
-    isRecording  = false;
-    console.log( 'ended recording' ); 
+	isRecording  = false;
+	console.log( 'ended recording' ); 
 
-    var msg = "s:";
-    console.log( msg );
-    wsAudioTX.send( msg );
+	var msg = "s:";
+	console.log( msg );
+	wsAudioTX.send( msg );
 }
 
 function AudioTX_SetGAIN( vol ){
@@ -777,8 +801,8 @@ function AudioTX_SetGAIN( vol ){
 
 function toggleRecord(sendit = false)
 {
-    if( !sendit ){stopRecord();}
-    else {if (wsAudioTX.readyState !== WebSocket.CLOSED) {startRecord();}}
+	if( !sendit ){stopRecord();}
+	else {if (wsAudioTX.readyState !== WebSocket.CLOSED) {startRecord();}}
 }
 
 //Cosmetics///////////////////////////////////////////////////////////////////////////
@@ -811,14 +835,14 @@ var x = 0;
 var canvasBFspcdiv2 = canvasBFspc.height/2;
 
   for(var i = 0; i < Audio_analyser.fftSize; i++) {
-    var y = canvasBFspcdiv2 + arraySPC[i] * canvasBFspcdiv2;
+	var y = canvasBFspcdiv2 + arraySPC[i] * canvasBFspcdiv2;
 	
-    if(i === 0) {
-      ctxBFspc.moveTo(x, y);
-    } else {
-      ctxBFspc.lineTo(x, y);
-    }
-    x += largeurTranche;
+	if(i === 0) {
+	  ctxBFspc.moveTo(x, y);
+	} else {
+	  ctxBFspc.lineTo(x, y);
+	}
+	x += largeurTranche;
   }
   ctxBFspc.lineTo(canvasBFspc.width, canvasBFspc.height/2);
   ctxBFspc.stroke();
@@ -841,16 +865,16 @@ var binWidth = canvasBFFFT.width / arrayFFT.length;
   ctxBFFFT.lineWidth = 2;
 
   for (var i = 0; i < arrayFFT.length; i++) {
-    var value = arrayFFT[i];
-    var normalizedValue = (value + 140) / 140; // Normaliser dans la plage 0-1 (ajustement à titre d'exemple)
-    var x = i * binWidth;
-    var y = canvasBFFFT.height - normalizedValue * canvasBFFFT.height;
+	var value = arrayFFT[i];
+	var normalizedValue = (value + 140) / 140; // Normaliser dans la plage 0-1 (ajustement à titre d'exemple)
+	var x = i * binWidth;
+	var y = canvasBFFFT.height - normalizedValue * canvasBFFFT.height;
 
-    if (i === 0) {
-      ctxBFFFT.moveTo(x, y);
-    } else {
-      ctxBFFFT.lineTo(x, y);
-    }
+	if (i === 0) {
+	  ctxBFFFT.moveTo(x, y);
+	} else {
+	  ctxBFFFT.lineTo(x, y);
+	}
   }
 
   ctxBFFFT.stroke();

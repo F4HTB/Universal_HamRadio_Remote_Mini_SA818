@@ -17,6 +17,7 @@ import gc
 import datetime
 from sa818 import *
 from collections import namedtuple
+import secrets
 
 ############ Global variables ##################################
 CTRX=None	
@@ -137,10 +138,12 @@ class BaseHandler(tornado.web.RequestHandler):
 ############ websocket for control TRX ##############
 ControlTRXHandlerClients = []
 LastPing = time.time()
+WSGlobKey_random_string = ""
 
 class WS_ControlTRX(tornado.websocket.WebSocketHandler):
 	executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
-
+	connected_clients = set()
+	
 	@tornado.concurrent.run_on_executor
 	def SA818Conf_setup(self, field, setting):
 		SA818Conf(field, setting)
@@ -158,16 +161,22 @@ class WS_ControlTRX(tornado.websocket.WebSocketHandler):
 		pass
 
 	def open(self):
-		global ws_control_trx_instance
-		ws_control_trx_instance = self
-		print('new connection on ControlTRX socket.')
-		if(config['SERVER']['yournameserver']!=""):
-			self.write_message("ENT: "+config['SERVER']['yournameserver']);
+		global WSGlobKey_random_string
+		if  WSGlobKey_random_string != self.get_argument("keykey"):
+			self.close()
+			print('WS_ControlTRX Bad WSGlobKey.')
+			return
 		self.set_nodelay(True)
+		if(config['SERVER']['yournameserver']!=""):
+			self.write_message("ENT: "+config['SERVER']['yournameserver'])
+		self.connected_clients.add(self)
+		print('new connection on ControlTRX socket.')
 		
 	@tornado.gen.coroutine
 	def on_message(self, data) :
 		global LastPing, radio_opts, scanFlag
+		if not self.ws_connection:
+			return
 		print(data)
 		
 		try:
@@ -203,8 +212,8 @@ class WS_ControlTRX(tornado.websocket.WebSocketHandler):
 		LastPing = time.time();
 			
 	def on_close(self):
-		global ws_control_trx_instance
-		ws_control_trx_instance = None
+		if self in self.connected_clients:
+			self.connected_clients.remove(self)
 		gc.collect()
 		
 ############ websocket for send RX audio from TRX ##############
@@ -233,15 +242,21 @@ class loadWavdata(threading.Thread):
 				
 
 class WS_AudioRXHandler(tornado.websocket.WebSocketHandler):
+	connected_clients = set()
 
 	def open(self):
+		global flagWavstart, AudioRXHandlerClients, WSGlobKey_random_string
+		if  WSGlobKey_random_string != self.get_argument("keykey"):
+			self.close()
+			print('WS_AudioRXHandler Bad WSGlobKey.')
+			return
 		self.set_nodelay(True)
-		global flagWavstart, AudioRXHandlerClients
 		AudioRXHandlerClients = self
 		self.Wavframes = []
-		print('new connection on AudioRXHandler socket.')
 		flagWavstart = True
 		self.tailstream()
+		self.connected_clients.add(self)
+		print('new connection on AudioRXHandler socket.')
 		
 	@tornado.gen.coroutine
 	def tailstream(self):
@@ -258,20 +273,20 @@ class WS_AudioRXHandler(tornado.websocket.WebSocketHandler):
 	def on_close(self):
 		global flagWavstart
 		print('connection closed for audioRX')
-		flagWavstart = False
-		self.Wavframes = []
+		if self in self.connected_clients:
+			self.Wavframes = []
+			flagWavstart = False
+			self.connected_clients.remove(self)
 		gc.collect()
 
 ############ websocket for control TX ##############
-last_AudioTXHandler_msg_time=0
-AudioTXHandlerClients = []
-
 class WS_AudioTXHandler(tornado.websocket.WebSocketHandler):
+	connected_clients = set()
+	last_msg_time = 0
 
 	def stoppttontimeout(self):
-		global last_AudioTXHandler_msg_time
 		try:
-			if time.time() > last_AudioTXHandler_msg_time + 10:
+			if time.time() > self.last_msg_time + 10:
 				if self.ws_connection and CTRX.infos["PTT"]==True:
 					PTTset("false")
 					print("stop ptt on timeout")
@@ -291,30 +306,40 @@ class WS_AudioTXHandler(tornado.websocket.WebSocketHandler):
 			print("TX pcm device busy")
 	
 	def open(self):
-		global last_AudioTXHandler_msg_time, AudioTXHandlerClients
-		AudioTXHandlerClients = self
-		print('new connection on AudioTXHandler socket.')
-		last_AudioTXHandler_msg_time=time.time()
-		self.stoppttontimeout()
+		global WSGlobKey_random_string
+		if  WSGlobKey_random_string != self.get_argument("keykey"):
+			self.close()
+			print('WS_AudioTXHandler Bad WSGlobKey.')
+			return
 		self.set_nodelay(True)
+		self.last_msg_time=time.time()
+		self.stoppttontimeout()
+		self.connected_clients.add(self)
+		print('new connection on AudioTXHandler socket.')
 
 	def on_message(self, data) :
-		global last_AudioTXHandler_msg_time
-		last_AudioTXHandler_msg_time=time.time()
-		
+		if not self.ws_connection:
+			return
+		self.last_msg_time=time.time()
 		if str(data).startswith('m:') :
 			self.TX_init(str(data[2:]))
 		elif str(data).startswith('s:') :
 			self.inp.close()
 		else :
-			self.inp.write(data)
+			try:
+				self.inp.write(data)
+			except Exception as e:
+				print(f"Error on PCM : {e}")
 			gc.collect()
 
 	def on_close(self):
-		if(hasattr(self,"inp")):
-			self.inp.close()
-		PTTset("false")
-		print('connection closed for TX socket')	
+		print('connection closed for TX socket')
+		if self in self.connected_clients:
+			if(hasattr(self,"inp")):
+				self.inp.close()
+			PTTset("false")
+			self.connected_clients.remove(self)	
+		gc.collect()
 
 ############ Login ##############
 class AuthLoginHandler(BaseHandler):
@@ -333,8 +358,8 @@ class AuthLoginHandler(BaseHandler):
 		if self.get_argument("name") != "" and self.get_argument("passwd") != "":
 			if self.bind(self.get_argument("name"),self.get_argument("passwd")):
 				self.set_secure_cookie("user", self.get_argument("name"))
-				self.set_cookie("callsign", self.get_argument("name"))
-				self.set_cookie("autha", "1")
+				self.set_cookie("callsign", self.get_argument("name"), samesite=None, secure=True)
+				self.set_cookie("autha", "1", samesite=None, secure=True)
 		self.redirect("/")
 		
 	def bind(self,user="",password=""):
@@ -354,19 +379,25 @@ class AuthLogoutHandler(BaseHandler):
 class MainHandler(BaseHandler):
 
 	def get(self):
-		if config['SERVER']['auth'] == "true":
-			print("Tornado current user:"+str(self.current_user))
-			if not self.current_user:
-				self.redirect("/login")
-				return
-			self.application.settings.get("compiled_template_cache", False)
-			self.set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-			self.render("www/index.html")
+		global WSGlobKey_random_string
+		if WS_ControlTRX.connected_clients or WS_AudioRXHandler.connected_clients or WS_AudioTXHandler.connected_clients:
+			self.write("Access denied. A connection already exists.")
 		else:
-			self.application.settings.get("compiled_template_cache", False)
-			self.set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-			self.render("www/index.html")
-			return
+			WSGlobKey_random_string = ''.join(secrets.choice('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789') for _ in range(20))
+			self.set_cookie("keykey", WSGlobKey_random_string, samesite=None, secure=True)
+			if config['SERVER']['auth'] == "true":
+				print("Tornado current user:"+str(self.current_user))
+				if not self.current_user:
+					self.redirect("/login")
+					return
+				self.application.settings.get("compiled_template_cache", False)
+				self.set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+				self.render("www/index.html")
+			else:
+				self.application.settings.get("compiled_template_cache", False)
+				self.set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+				self.render("www/index.html")
+				return
 
 if __name__ == "__main__":
 
