@@ -24,6 +24,7 @@ config = configparser.ConfigParser()
 config.read('UHRRM.conf')
 e="No"
 PTTgpio=str(config['OrangePI']['PTTGPIO'])
+RXgpio=str(config['OrangePI']['RXGPIO'])
 
 radio_opts_struct = namedtuple("radio_opts_struct","bw frequency offset squelch ctcss dcs level emphasis highpass lowpass close_tail")	
 radio_opts = radio_opts_struct(
@@ -96,15 +97,27 @@ def SA818Conf(field, setting):
 			radio.set_radio(radio_opts)
 		elif field in ['emphasis', 'highpass', 'lowpass']:
 			radio.set_filter(radio_opts)
-
 	with open('UHRRM.conf', 'w') as configfile:
 		config.write(configfile)
+		
+def SA818savescanFreqs(freqs):
+	config['SA818']['scan_frequencies']=""
+	for freq in freqs.split(','):
+		freq = freq.strip()
+		if freq:
+			config['SA818']['scan_frequencies'] += "{:.4f}".format(type_frequency(freq))+","
+	config['SA818']['scan_frequencies'] = config['SA818']['scan_frequencies'][:-1]
+	with open('UHRRM.conf', 'w') as configfile:
+		config.write(configfile)
+		
 
 ############ GPIO ##################################
 def PTTinit():
 	global PTTgpio
 	os.system("echo "+PTTgpio+" > /sys/class/gpio/export > /dev/null 2>&1")
 	os.system("echo out > /sys/class/gpio/gpio"+PTTgpio+"/direction > /dev/null 2>&1")
+	os.system("echo "+RXgpio+" > /sys/class/gpio/export > /dev/null 2>&1")
+	os.system("echo in > /sys/class/gpio/gpio"+RXgpio+"/direction > /dev/null 2>&1")
 	
 def PTTset(state):
 	global PTTgpio
@@ -132,8 +145,21 @@ class WS_ControlTRX(tornado.websocket.WebSocketHandler):
 	def SA818Conf_setup(self, field, setting):
 		SA818Conf(field, setting)
 		pass
+	
+	def SA818SF(self, freq):
+		print("freq:"+freq)
+		radio.scan_freq(float(freq))
+		status = int(os.popen("cat /sys/class/gpio/gpio"+RXgpio+"/value").read())
+		print(status)
+		if status:
+			return freq
+		else:
+			return 0
+		pass
 
 	def open(self):
+		global ws_control_trx_instance
+		ws_control_trx_instance = self
 		print('new connection on ControlTRX socket.')
 		if(config['SERVER']['yournameserver']!=""):
 			self.write_message("ENT: "+config['SERVER']['yournameserver']);
@@ -141,7 +167,7 @@ class WS_ControlTRX(tornado.websocket.WebSocketHandler):
 		
 	@tornado.gen.coroutine
 	def on_message(self, data) :
-		global LastPing, radio_opts
+		global LastPing, radio_opts, scanFlag
 		print(data)
 		
 		try:
@@ -154,18 +180,31 @@ class WS_ControlTRX(tornado.websocket.WebSocketHandler):
 			yield self.write_message("PONG")
 		elif(action == "setPTT"):
 			yield self.write_message("getPTT:"+str(PTTset(datato)))
+		elif(action == "scanFREQ"):
+			try:
+				rep = self.SA818SF("{:.4f}".format(type_frequency(datato)))
+				yield self.write_message("scanFREQ:"+str(rep)) 
+			except:
+				pass
 		elif(action == "getCONFIG"):
 			result_string = ",".join([f"{field}={value}" for field, value in radio_opts._asdict().items()])
 			yield self.write_message("getCONFIG:"+str(result_string)) 
 			yield print("getCONFIG:"+str(result_string))
+			yield self.write_message("getscanFREQS:"+str(config['SA818']['scan_frequencies'])) 
 		elif(action == "setCONFIG"):
 			(field, setting) = datato.split('=')
 			yield self.SA818Conf_setup(field, setting)
 			yield self.write_message("setCONFIG:OK")
+		elif(action == "setscanFREQS"):
+			yield SA818savescanFreqs(datato)
+			yield self.write_message("setscanFREQS:OK")
+			
 			
 		LastPing = time.time();
 			
 	def on_close(self):
+		global ws_control_trx_instance
+		ws_control_trx_instance = None
 		gc.collect()
 		
 ############ websocket for send RX audio from TRX ##############

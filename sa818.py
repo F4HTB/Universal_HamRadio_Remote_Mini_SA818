@@ -52,6 +52,7 @@ class SA818:
   FILTER = "AT+SETFILTER"
   VOLUME = "AT+DMOSETVOLUME"
   TAIL = "AT+SETTAIL"
+  SCAN = "S+"
   NARROW = 0
   PORTS = ('/dev/serial0', '/dev/ttyUSB0')
   READ_TIMEOUT = 3.0
@@ -181,6 +182,22 @@ class SA818:
       logger.error('SA818 set volume error')
     else:
       logger.info("%s Volume level: %d, OK", response, opts.level)
+
+  def scan_freq(self, freq):
+    rx_freq = "{:.4f}".format(freq)
+    cmd = "{}{}".format(self.SCAN, rx_freq)
+    self.send(cmd)
+    time.sleep(1)
+    response = self.readline()
+    if response == "S=0":
+      logger.info("Signal matched on the frequency %s, OK", rx_freq)
+      return 1
+    if response == "S=1":
+      logger.info("Signal matched on the frequency %s, NO", rx_freq)
+      return 0
+    else:
+      logger.error('SA818 scan error')
+      return -1
 
   def close_tail(self, opts):
     _yn = {True: "Yes", False: "No"}

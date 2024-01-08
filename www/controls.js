@@ -16,6 +16,8 @@ function bodyload(){
 	document.getElementById('frequency').addEventListener('change', validateFrequencyAndOffsetFields);
 	document.getElementById('offset').addEventListener('change', validateFrequencyAndOffsetFields);
 	document.getElementById('Scan_frequencies').addEventListener('blur', validateLinesInTextAreaFS);
+	document.getElementById('Scan_frequencies').addEventListener("keyup", function(event) {if (event.key === "Enter") {validateLinesInTextAreaFS(event);}});
+	document.getElementById('Scan_frequencies_toggle').addEventListener('click', Send_scan_frequencies);
 }
 
 //TRX control routines///////////////////////////////////////////////////////////////////////////
@@ -28,11 +30,14 @@ function ControlTRX_start(){
 	wsControlTRX.onopen = SA818_Control_Init;
 }
 
+
 function wsControlTRXcrtol( msg ){
 	words = String(msg.data).split(':');
 	if(words[0] == "PONG"){showlatency();}
 	else if(words[0] == "ENT"){document.getElementById("mess").textContent = "UHRR Mini - "+words[1];console.log(words[1]);}
 	else if(words[0] == "getCONFIG"){SA818_Control_Init_Values(words[1]);}
+	else if(words[0] == "getscanFREQS"){Receive_scan_frequencies(words[1]);}
+	else if(words[0] == "scanFREQ"){Scan_frequencies(words[1]);}
 }
 
 var startTime;
@@ -57,24 +62,29 @@ function sendTRXptt(stat){
 	if (wsControlTRX.readyState === WebSocket.OPEN) {wsControlTRX.send("setPTT:"+stat);}
 }
 
-function TXtogle(state="None")
+function TXtoggle(state="None")
 {
 	if(state=="True")
 	{
+		if(document.getElementById('Scan_frequencies_toggle').checked){
+			sendInputData("frequency", document.getElementById('frequency').value);
+			sendInputData("offset", "0.0000");
+			document.getElementById('Scan_frequencies_toggle').checked = false;
+			document.getElementById('offset').value="0.0000";
+		}
 		toggleRecord(true);
-		toggleaudioRX();
+		toggleaudioRX(true);
 		sendTRXptt(true);
 		button_pressed();
 	}
 	else
 	{
-		AudioRX_audiobuffer.length = 0;
-		toggleRecord();
-		toggleaudioRX();
+		toggleRecord(false);
+		toggleaudioRX(false);
 		sendTRXptt(false);
 		button_unpressed();
 	}
-	AudioRX_audiobuffer.length = 0;
+	AudioRX_audiobuffer = [];
 }
 
   function sendInputData(name, value) {
@@ -102,6 +112,7 @@ function SA818_Control_Init_Values(values){
 			element.disabled = false;
 		}
 	});
+	validateFrequencyAndOffsetFields();
 }
 
 function SA818_Control_Init(){
@@ -155,8 +166,8 @@ function validateFrequencyAndOffsetFields() {
 }
 
 function validateLinesInTextAreaFS(e) {
-       var textarea = e.target || e.srcElement;
-        const checkbox = document.getElementById('Scan_frequencies_togle');
+		var textarea = e.target || e.srcElement;
+        const checkbox = document.getElementById('Scan_frequencies_toggle');
 
         const lines = textarea.value.split('\n');
         let allLinesValid = true;
@@ -190,7 +201,47 @@ const formattedLines = lines
 		textarea.style.backgroundColor = ''; // Remettre le style par défaut
 		checkbox.disabled = false;
 	}
+	if (e.key === "Enter") {textarea.value += "\n";textarea.focus();}
+}
 
+var freqstoscan ="";
+var actufreqtoscan =0;
+function Send_scan_frequencies(e) {
+	var Scan_frequencies_toggle = e.target || e.srcElement;
+	var textarea = document.getElementById('Scan_frequencies');
+	freqstoscan = textarea.value.split('\n');
+	if (Scan_frequencies_toggle.checked) {
+		if (typeof wsControlTRX !== 'undefined' && wsControlTRX.readyState === WebSocket.OPEN) {
+		  wsControlTRX.send("setscanFREQS:"+freqstoscan.join(','));
+		}
+	}
+	Scan_frequencies(0);
+}
+
+function Scan_frequencies(freq) {
+		if(document.getElementById('Scan_frequencies_toggle').checked){
+		if(freq==freqstoscan[actufreqtoscan]){
+			AudioRX_SetGAIN();
+			blikcritik("frequency");
+			setTimeout(function() {
+				Scan_frequencies("0")
+			}, 5000); 
+		}
+		else{
+			AudioRX_SetGAIN(0);
+			actufreqtoscan++;
+			if(actufreqtoscan > (freqstoscan.length-1)){actufreqtoscan=0;}
+			console.log(freqstoscan[actufreqtoscan] + " in " + actufreqtoscan);
+			wsControlTRX.send("scanFREQ:"+freqstoscan[actufreqtoscan]);
+			document.getElementById('frequency').value=freqstoscan[actufreqtoscan];
+		}
+	}
+}
+
+function Receive_scan_frequencies(freqs) {
+	var textarea = document.getElementById('Scan_frequencies');
+	textarea.value = freqs.split(',').join('\n');
+	textarea.dispatchEvent(new Event('blur'));
 }
 
 //RX Audio routines///////////////////////////////////////////////////////////////////////////
@@ -205,7 +256,7 @@ var AudioRX_audiobuffer = [];
 var AudioRX_sampleRate=8000;
 
 function AudioRX_start(){
-	AudioRX_audiobuffer = [];var lenglitchbuf = 2;
+	AudioRX_audiobuffer = [];
 
 	wsAudioRX = new WebSocket( 'wss://' + window.location.href.split( '/' )[2] + '/WSaudioRX' );
 	wsAudioRX.binaryType = 'arraybuffer';
@@ -216,6 +267,7 @@ function AudioRX_start(){
 	function appendwsAudioRX( msg ){
 		AudioRX_audiobuffer.push(new Float32Array(msg.data));
 	}
+	
 
 	const BUFF_SIZE = 256; // spec allows, yet do not go below 1024 
 	AudioRX_context = new AudioContext({latencyHint: "interactive",sampleRate: AudioRX_sampleRate});
@@ -234,6 +286,7 @@ function AudioRX_start(){
 					synth_buff[i] = AudioRX_audiobuffer[0][i];
 				}
 				if(le){AudioRX_audiobuffer.shift();}
+				if(AudioRX_audiobuffer.length > 10){AudioRX_audiobuffer = [];}
 			}
 		};
 	}());
