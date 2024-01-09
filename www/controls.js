@@ -363,7 +363,7 @@ function AudioRX_stop()
 	audiobufferready = false;
 	wsAudioRX.close();
 	AudioRX_source_node.onaudioprocess = null
-	AudioRX_context.close();
+	if (audioContext.state !== 'closed') {AudioRX_context.close();}
 }
 
 var muteRX=false;
