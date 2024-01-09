@@ -18,6 +18,8 @@ import datetime
 from sa818 import *
 from collections import namedtuple
 import secrets
+import logging
+from logging.handlers import RotatingFileHandler
 
 ############ Global variables ##################################
 UHRRM_CONFIG_FILE = 'UHRRM.conf'
@@ -41,6 +43,17 @@ highpass=None,
 lowpass=None,
 close_tail=None
 )
+
+logger = logging.getLogger('UHRRM')
+logger.setLevel(logging.INFO)
+format = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+ch = logging.StreamHandler(sys.stdout)
+ch.setFormatter(format)
+logger.addHandler(ch)
+fh = logging.handlers.RotatingFileHandler(config['SERVER']['log_file'], maxBytes=(1000000), backupCount=5)
+fh.setFormatter(format)
+logger.addHandler(fh)
+
 ############ SA818 ##################################
 def SA818init():
 	global radio, radio_opts, config
@@ -123,11 +136,6 @@ def PTTset(state=None):
 		state = "1" if state.lower() == "true" else "0"
 		os.system(f"echo {state} > /sys/class/gpio/gpio{PTTgpio}/value")
 	return os.popen(f"cat /sys/class/gpio/gpio{PTTgpio}/value").read()
-
-############ BaseHandler tornado ##############
-class BaseHandler(tornado.web.RequestHandler):
-	def get_current_user(self):
-		return self.get_secure_cookie("user")
 
 ############ websocket for control TRX ##############
 ControlTRXHandlerClients = []
@@ -355,7 +363,7 @@ class WS_AudioTXHandler(tornado.websocket.WebSocketHandler):
 		gc.collect()
 
 ############ Login ##############
-class AuthLoginHandler(BaseHandler):
+class AuthLoginHandler(tornado.web.RequestHandler):
 
 	def get(self):
 		if config['SERVER']['auth'] != "true":
@@ -373,6 +381,8 @@ class AuthLoginHandler(BaseHandler):
 				self.set_secure_cookie("user", self.get_argument("name"))
 				self.set_cookie("callsign", self.get_argument("name"), samesite=None, secure=True)
 				self.set_cookie("autha", "1", samesite=None, secure=True)
+			else:
+				logger.error(f'Auth fail: {self.request.remote_ip} {self.get_argument("name")} {self.get_argument("passwd")}')
 		self.redirect("/")
 		
 	def bind(self,user="",password=""):
@@ -382,40 +392,46 @@ class AuthLoginHandler(BaseHandler):
 				retval = True		
 		return retval
 		
-class AuthLogoutHandler(BaseHandler):
+class AuthLogoutHandler(tornado.web.RequestHandler):
 	def get(self):
 		self.clear_cookie("user")
 		self.clear_cookie("autha")
 		self.redirect(self.get_argument("next", "/"))
 
 ############ Main ##############
-class MainHandler(BaseHandler):
+class MainHandler(tornado.web.RequestHandler):
 
 	def get(self):
 		global WSGlobKey_random_string
-		if WSGlobKey_random_string != self.get_cookie("keykey") and (WS_ControlTRX.ControlTRX_connected_clients or WS_AudioRXHandler.AudioRXHandler_connected_clients or WS_AudioTXHandler.AudioTXHandler_connected_clients):
-			self.write("Access denied. A connection already exists.")
-		else:
-			WSGlobKey_random_string = self.get_cookie("keykey")
-			if not WSGlobKey_random_string:
-				WSGlobKey_random_string = ''.join(secrets.choice('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789') for _ in range(20))
-				self.set_cookie("keykey", WSGlobKey_random_string, samesite=None, secure=True)
-			if config['SERVER']['auth'] == "true":
-				print("Tornado current user:"+str(self.current_user))
-				if not self.current_user:
-					self.redirect("/login")
-					return
-				self.application.settings.get("compiled_template_cache", False)
-				self.set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-				self.render("www/index.html")
+		try:
+			logger.info(f'Connection from IP: {self.request.remote_ip} {self.request.headers.get("Host", "Unknown Host")}')
+			if WSGlobKey_random_string != self.get_cookie("keykey") and (WS_ControlTRX.ControlTRX_connected_clients or WS_AudioRXHandler.AudioRXHandler_connected_clients or WS_AudioTXHandler.AudioTXHandler_connected_clients):
+				self.write("Access denied. A connection already exists.")
 			else:
-				self.application.settings.get("compiled_template_cache", False)
-				self.set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-				self.render("www/index.html")
-				return
-
+				WSGlobKey_random_string = self.get_cookie("keykey")
+				if not WSGlobKey_random_string:
+					WSGlobKey_random_string = ''.join(secrets.choice('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789') for _ in range(20))
+					self.set_cookie("keykey", WSGlobKey_random_string, samesite=None, secure=True)
+				if config['SERVER']['auth'] == "true":
+					print("Tornado current user:"+str(self.current_user))
+					if not self.current_user:
+						self.redirect("/login")
+						return
+					self.application.settings.get("compiled_template_cache", False)
+					self.set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+					self.render("www/index.html")
+				else:
+					self.application.settings.get("compiled_template_cache", False)
+					self.set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+					self.render("www/index.html")
+					return
+		except Exception as e:
+					logger.error(f'Error in MainHandler: {str(e)}')
+					self.write('An error occurred.')
+					
 if __name__ == "__main__":
 
+	logger.info("Strating server.")
 	try:
 		SA818init()
 	except (IOError, SystemError) as err:
@@ -435,7 +451,7 @@ if __name__ == "__main__":
 		(r'/WSCTRX', WS_ControlTRX),
 		(r'/', MainHandler),
 		(r'/(.*)', tornado.web.StaticFileHandler, { 'path' : './www' })
-		],debug=bool(config['SERVER']['debug']), websocket_ping_interval=10, cookie_secret=config['SERVER']['cookie_secret'])
+		],debug=1 if config['SERVER']['debug'] == "true" else 0, websocket_ping_interval=10, cookie_secret=config['SERVER']['cookie_secret']) 
 	except:
 		e = str(sys.exc_info())
 		print(e)

@@ -44,16 +44,84 @@ Config file:
 
 ```
 [SERVER]
+; Name of your server displayed on the interface
+yournameserver = TESTNAME
+; Port number on which the server will listen
+port = 8888
+; Path to the server's SSL certificate file
+certfile = UHRRM.crt
+; Path to the server's SSL key file
+keyfile = UHRRM.key
+; Secret key used to sign cookies
+cookie_secret = L8LwECiNRxq2N0N2eGxx9MZlrpmuMEimlydNX/vt1LM=
+; Enable or disable debugging mode (true/false) for webserver only
+debug = true
+; Enable or disable authentication (true/false)
+auth = false
+; Username for authentication (if auth is true)
+authlogin = operator
+; Password for authentication (if auth is true)
+authpassword = operator
+; Path to the UHRR's log file
+log_file = UHRRM.log
+
+[AUDIO]
+; Output audio device configuration
+outputdevice = plughw:CARD=Codec,DEV=0
+; Input audio device configuration
+inputdevice = plughw:CARD=Codec,DEV=0
+
+[OrangePI]
+; GPIO pin configuration for PTT
+pttgpio = 7
+; GPIO pin configuration for RX Flag
+rxgpio = 10
+
+[SA818]
+; Bandwidth configuration (0 for narrow, 1 for wide)
+bw = 0
+; Transmit frequency in MHz
+frequency = 432.5000
+; Offset frequency in MHz
+offset = 0.0000
+; Squelch level configuration
+squelch = 2
+; CTCSS tone configuration (None if not used)
+ctcss = None
+; DCS code configuration (None if not used)
+dcs = None
+; Audio level configuration
+level = 4
+; Enable or disable emphasis
+emphasis = false
+; Enable or disable high-pass filter
+highpass = true
+; Enable or disable low-pass filter
+lowpass = true
+; Serial port configuration for SA818
+serial = /dev/ttyS2
+; Baud rate for SA818 communication
+rate = 9600
+; Frequencies to scan (comma-separated)
+scan_frequencies = 145.4000,432.9750,432.7000
+; Wait time (in seconds) for the scanner to detect activity
+scan_waittondetect = 5
+```
+
+example:
+
+```
+[SERVER]
 yournameserver = TESTNAME
 port = 8888
 certfile = UHRRM.crt
 keyfile = UHRRM.key
 cookie_secret = L8LwECiNRxq2N0N2eGxx9MZlrpmuMEimlydNX/vt1LM=
-log_file = UHRRM.log
-debug = true
+debug = false
 auth = false
 authlogin = operator
 authpassword = operator
+log_file = server_logs.log
 
 [AUDIO]
 outputdevice = plughw:CARD=Codec,DEV=0
@@ -69,14 +137,14 @@ frequency = 432.5000
 offset = 0.0000
 squelch = 2
 ctcss = None
-dcs = 0
+dcs = None
 level = 4
 emphasis = false
 highpass = true
 lowpass = true
 serial = /dev/ttyS2
 rate = 9600
-scan_frequencies = 145.4000,432.9750,432.5000
+scan_frequencies = 145.4000,432.9750,432.7000
 scan_waittondetect = 5
 ```
   
