@@ -3,13 +3,15 @@ A minimalist version of uhrr to simple gateway with a talki walki.
 Based on orange pi and <a href="https://f5nlg.wordpress.com">spotnik delta inerface</a>.
 
 PTT on gpio 7 on orange pi zero.
+Read reception flag on gpio 10 on orange pi zero.
 
 Interface:
-!![UHRR_MINI_SA818_F4HTB_Interface](https://github.com/F4HTB/Universal_HamRadio_Remote_Mini_SA818/assets/18350938/8e767a2b-e207-4b2c-a31f-b5e89bb0057d)
+
+![UHRR_MINI_SA818_F4HTB_Interface](https://github.com/F4HTB/Universal_HamRadio_Remote_Mini_SA818/assets/18350938/8e767a2b-e207-4b2c-a31f-b5e89bb0057d)
 
 <img src="https://boutique.spotnik.org/prestashop/24-large_default/spotnik-hot-spot-.jpg" width="200" height="200">
 
-For installation on armbian:
+For installation on **armbian**:
 
 ```
 git clone https://github.com/F4HTB/Universal_HamRadio_Remote_Mini_SA818
@@ -18,6 +20,7 @@ rm /usr/lib/python3.11/EXTERNALLY-MANAGED
 pip3 install pyalsaaudio
 cd Universal_HamRadio_Remote_Mini_SA818
 chmod +x UHRRM
+chmod +x start.sh
 ```
 ```
 ./UHRRM
@@ -30,6 +33,9 @@ start.sh include some tricks for GPIO and alsamixer configuration for orangie pi
 
 
 Got to https://your_ip:8888
+
+**https only**
+
 Clic somewhere on page to start the connection.
 
 For hardware see :
@@ -75,4 +81,9 @@ serial = /dev/ttyS2
 rate = 9600
 scan_frequencies = 145.4000,432.9750,432.5000
 scan_waittondetect = 5
+```
+
+ngrock usage:
+```
+ngrok http https://localhost:8888
 ```
