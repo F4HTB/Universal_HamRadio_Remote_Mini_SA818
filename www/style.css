@@ -8,7 +8,9 @@ body {
 	-moz-user-select: none;
 	-ms-user-select: none;
 	user-select: none;
-	/* overflow: hidden; */
+	
+	width:2000px;
+	height: 2000px;
 }
 
 #container {
@@ -37,8 +39,17 @@ body {
 	align-items:center;
 }
 
+#logo img{
+	height:100%;
+}
+
 #mess{
 	margin-left: auto;
+	width:100%;
+	height:100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 #RX{
@@ -74,7 +85,6 @@ body {
 
 #TX-record
 {
-	margin-top:15px;
 	text-align:center;
 	font:normal bold 30px tahoma;
 	height:40px;
@@ -103,34 +113,45 @@ body {
 
 #SA818_control
 {
-	margin-top: 20px;
+	margin-top: 10px;
 	float: left;
 	width: 720px;
-	height: 30px;
+	height: 80px;
 }
 
 #SA818_control table
 {
-	width:100%;
+	width: 720px;
 }
 
-#SA818_control input, select
+#SA818_control tbody, #SA818_control tr
+{
+	width: 100%;
+}
+
+#SA818_control input, #SA818_control select
 {
 	width: 120px;
-	margin-right: 10px;
+	padding: 1px;
+	border-width:0px;
+	-webkit-box-sizing: content-box; /* Safari/Chrome, other WebKit */
+	-moz-box-sizing: content-box;    /* Firefox, other Gecko */
+	box-sizing: content-box;         /* Opera/IE 8+ */
 }
 
 #div-PTT{
 	position: absolute;
-	bottom: 30px;
+	bottom: 20px;
 	height:40px;
 	float: right;
 	width: 300px;
 }
 
 #Scann{
+	margin-top:10px;
 	display: flex;
 	align-items: center;
+	height:45px;
 }
 
 #Scann .label {
@@ -138,14 +159,19 @@ body {
 }
 
 #Scann textarea{
-	height:40px;
-	width: 128px;
+	height:45px;
+	width: 138px;
 	resize: none;
+	padding: 1px;
+	border-width:0px;
+	-webkit-box-sizing: content-box; /* Safari/Chrome, other WebKit */
+	-moz-box-sizing: content-box;    /* Firefox, other Gecko */
+	box-sizing: content-box;         /* Opera/IE 8+ */
 }
 
 #Scann input[type="checkbox"] {
     margin-left: 20px; 
-	margin-right: 20px;
+	margin-right: 10px;
 }
 
 meter{

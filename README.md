@@ -5,7 +5,7 @@ Based on orange pi and <a href="https://f5nlg.wordpress.com">spotnik delta inerf
 PTT on gpio 7 on orange pi zero.
 
 Interface:
-![UHRR_MINI_SA818_F4HTB_Interface](https://github.com/F4HTB/Universal_HamRadio_Remote_Mini_SA818/assets/18350938/3ddaa1da-b5ca-4acb-bb29-2f0456ce718b)
+!![UHRR_MINI_SA818_F4HTB_Interface](https://github.com/F4HTB/Universal_HamRadio_Remote_Mini_SA818/assets/18350938/8e767a2b-e207-4b2c-a31f-b5e89bb0057d)
 
 <img src="https://boutique.spotnik.org/prestashop/24-large_default/spotnik-hot-spot-.jpg" width="200" height="200">
 

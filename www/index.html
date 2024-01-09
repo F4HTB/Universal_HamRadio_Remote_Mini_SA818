@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<meta charset="UTF-8">
-		<title>Universal Hamradio Remote Mini by F4HTB</title>
+		<title>Universal Hamradio Remote Mini for SA818 by F4HTB</title>
 		<link rel="stylesheet" type="text/css" href="style.css">
 	</head>
 	</head>
@@ -13,7 +13,7 @@
 	<div id="div-left">
 	
 	<div id="logo">
-		<img src="logo.png" style="width:100px;"><p id="mess">UHRR Mini<br>Click anywhere to connect.</p>
+		<img src="logo.png" style="width:100px;"><div id="mess">UHRR Mini<br>Click anywhere to connect.</div>
 	</div>
 	
 	<div id="RX">
@@ -117,7 +117,7 @@
 	</div>	
 
 	<div id="div-PTT">
-		<span onmousedown="TXtoggle('True');" onmouseup="TXtoggle('False');" class="button_unpressed" id="TX-record">PTT</span>	
+		<span onmousedown="TXtoggle('True');" ontouchstart="TXtoggle('True');" onmouseup="TXtoggle('False');" ontouchend="TXtoggle('False');" ontouchcancel="TXtoggle('False');" class="button_unpressed" id="TX-record">PTT</span>
 	</div>	
 		
 	<div id="div-latencymeter">latency:∞</div>

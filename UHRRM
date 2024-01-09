@@ -163,7 +163,7 @@ class WS_ControlTRX(tornado.websocket.WebSocketHandler):
 			return
 		self.set_nodelay(True)
 		if(config['SERVER']['yournameserver']!=""):
-			self.write_message("ENT: "+config['SERVER']['yournameserver'])
+			self.write_message("ENT:"+config['SERVER']['yournameserver'])
 		self.ControlTRX_connected_clients.add(self)
 		print('new connection on ControlTRX socket.')
 		
@@ -393,7 +393,7 @@ class MainHandler(BaseHandler):
 
 	def get(self):
 		global WSGlobKey_random_string
-		if WS_ControlTRX.ControlTRX_connected_clients or WS_AudioRXHandler.AudioRXHandler_connected_clients or WS_AudioTXHandler.AudioTXHandler_connected_clients:
+		if WSGlobKey_random_string != self.get_cookie("keykey") and (WS_ControlTRX.ControlTRX_connected_clients or WS_AudioRXHandler.AudioRXHandler_connected_clients or WS_AudioTXHandler.AudioTXHandler_connected_clients):
 			self.write("Access denied. A connection already exists.")
 		else:
 			WSGlobKey_random_string = self.get_cookie("keykey")
