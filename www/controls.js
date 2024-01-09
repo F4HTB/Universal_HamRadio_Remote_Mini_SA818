@@ -70,14 +70,15 @@ function checklatency(delay) {
 		if (wsControlTRX.readyState === WebSocket.OPEN) {wsControlTRX.send("PING");checklatency(delay);}
 		if ((wsControlTRX.readyState === WebSocket.OPEN) && (wsAudioRX.readyState === WebSocket.OPEN) && (wsAudioTX.readyState === WebSocket.OPEN)){
 			document.getElementById("container").style.borderColor="green";
-			document.getElementById("mess").textContent = "UHRR Mini - "+ mess;
+			document.getElementById("mess").innerHTML = "UHRR Mini<br>"+ mess;
 			delay=5000;
 		}else{
 			console.log("wsControlTRX:"+(wsControlTRX.readyState === WebSocket.OPEN));
 			console.log("wsAudioRX:"+(wsAudioRX.readyState === WebSocket.OPEN));
 			console.log("wsAudioTX:"+(wsAudioTX.readyState === WebSocket.OPEN));
 			document.getElementById("container").style.borderColor="red";
-			document.getElementById("mess").textContent = "UHRR Mini<br>Click anywhere to connect.";
+			document.getElementById("mess").innerHTML = "UHRR Mini<br>Refresh webpage.";
+			document.getElementById("mess").style.color = "red";
 			document.addEventListener('click', handlePageClick);
 		}
 	}, delay);

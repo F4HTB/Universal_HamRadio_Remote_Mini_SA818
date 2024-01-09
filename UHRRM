@@ -8,7 +8,7 @@ import tornado.web
 import tornado.websocket
 import tornado.concurrent
 import concurrent.futures
-import configparser
+from configparser import ConfigParser
 import time
 import sys
 import alsaaudio
@@ -20,10 +20,10 @@ from collections import namedtuple
 import secrets
 
 ############ Global variables ##################################
-CTRX=None	
-config = configparser.ConfigParser()
-config.read('UHRRM.conf')
-e="No"
+UHRRM_CONFIG_FILE = 'UHRRM.conf'
+	
+config = ConfigParser()
+config.read(UHRRM_CONFIG_FILE)
 PTTgpio=str(config['OrangePI']['PTTGPIO'])
 RXgpio=str(config['OrangePI']['RXGPIO'])
 
@@ -50,17 +50,17 @@ def SA818init():
 	
 	SA818OptioizeConf()
 	
-	print("\n\
-	bw="+str(radio_opts.bw)+" 0=NARROW (12.5KHz), 1=WIDE (25KHx)\n\
-	frequency="+str(radio_opts.frequency)+"\n\
-	offset="+str(radio_opts.offset)+"\n\
-	squelch="+str(radio_opts.squelch)+"\n\
-	ctcss="+str(radio_opts.ctcss)+"\n\
-	dcs="+str(radio_opts.dcs)+"\n\
-	level="+str(radio_opts.level)+"\n\
-	emphasis="+str(radio_opts.emphasis)+"\n\
-	highpass="+str(radio_opts.highpass)+"\n\
-	lowpass="+str(radio_opts.lowpass)+"\n\
+	print(f"\n\
+	bw={radio_opts.bw} 0=NARROW (12.5KHz), 1=WIDE (25KHx)\n\
+	frequency={radio_opts.frequency}\n\
+	offset={radio_opts.offset}\n\
+	squelch={radio_opts.squelch}\n\
+	ctcss={radio_opts.ctcss}\n\
+	dcs={radio_opts.dcs}\n\
+	level={radio_opts.level}\n\
+	emphasis={radio_opts.emphasis}\n\
+	highpass={radio_opts.highpass}\n\
+	lowpass={radio_opts.lowpass}\n\
 	\n\ ")
 
 	
@@ -71,16 +71,13 @@ def SA818init():
 def SA818OptioizeConf():
 	global radio_opts, config
 	
-	Rctcss = None if config['SA818']['ctcss'] in ["0", "None"] else type_ctcss(str(config['SA818']['ctcss']))
-	Rdcs = None if config['SA818']['dcs'] in ["0", "None"] else type_dcs(str(config['SA818']['dcs']))
-	
 	radio_opts = radio_opts_struct(
 	bw=int(config['SA818']['bw']),
 	frequency=type_frequency(config['SA818']['frequency']),
 	offset=float(config['SA818']['offset']),
 	squelch=type_squelch(config['SA818']['squelch']),
-	ctcss=Rctcss,
-	dcs=Rdcs,
+	ctcss=None if config['SA818']['ctcss'] in ["0", "None"] else type_ctcss(str(config['SA818']['ctcss'])),
+	dcs=None if config['SA818']['dcs'] in ["0", "None"] else type_dcs(str(config['SA818']['dcs'])),
 	level=type_level(config['SA818']['level']),
 	emphasis=yesno(config['SA818']['emphasis']),
 	highpass=yesno(config['SA818']['highpass']),
@@ -90,15 +87,14 @@ def SA818OptioizeConf():
 
 def SA818Conf(field, setting):
 	global radio, radio_opts
-	
 	if field in radio_opts._fields:
 		config['SA818'][field]=setting
 		SA818OptioizeConf()
 		if field in ['bw', 'frequency', 'offset', 'squelch', 'ctcss', 'dcs']:
 			radio.set_radio(radio_opts)
 		elif field in ['emphasis', 'highpass', 'lowpass']:
-			radio.set_filter(radio_opts)
-	with open('UHRRM.conf', 'w') as configfile:
+			radio.set_filter(radio_opts)	
+	with open(UHRRM_CONFIG_FILE, 'w') as configfile:
 		config.write(configfile)
 		
 def SA818savescanFreqs(freqs):
@@ -108,27 +104,25 @@ def SA818savescanFreqs(freqs):
 		if freq:
 			config['SA818']['scan_frequencies'] += "{:.4f}".format(type_frequency(freq))+","
 	config['SA818']['scan_frequencies'] = config['SA818']['scan_frequencies'][:-1]
-	with open('UHRRM.conf', 'w') as configfile:
+	with open(UHRRM_CONFIG_FILE, 'w') as configfile:
 		config.write(configfile)
 		
 
 ############ GPIO ##################################
 def PTTinit():
 	global PTTgpio
-	os.system("echo "+PTTgpio+" > /sys/class/gpio/export > /dev/null 2>&1")
-	os.system("echo out > /sys/class/gpio/gpio"+PTTgpio+"/direction > /dev/null 2>&1")
-	os.system("echo "+RXgpio+" > /sys/class/gpio/export > /dev/null 2>&1")
-	os.system("echo in > /sys/class/gpio/gpio"+RXgpio+"/direction > /dev/null 2>&1")
+	os.system(f"echo {PTTgpio} > /sys/class/gpio/export > /dev/null 2>&1")
+	os.system(f"echo out > /sys/class/gpio/gpio{PTTgpio}/direction > /dev/null 2>&1")
+	os.system(f"echo {RXgpio} > /sys/class/gpio/export > /dev/null 2>&1")
+	os.system(f"echo in > /sys/class/gpio/gpio{RXgpio}/direction > /dev/null 2>&1")
 	
-def PTTset(state):
+def PTTset(state=None):
 	global PTTgpio
-	print("PTT:"+state)
-	if(state == "true"):
-		state = "1"
-	else:
-		state = "0"
-	os.system("echo "+state+" > /sys/class/gpio/gpio"+PTTgpio+"/value")
-	return os.popen("cat /sys/class/gpio/gpio"+PTTgpio+"/value").read()
+	if state is not None:
+		print(f'PTT:{state}')
+		state = "1" if state.lower() == "true" else "0"
+		os.system(f"echo {state} > /sys/class/gpio/gpio{PTTgpio}/value")
+	return os.popen(f"cat /sys/class/gpio/gpio{PTTgpio}/value").read()
 
 ############ BaseHandler tornado ##############
 class BaseHandler(tornado.web.RequestHandler):
@@ -150,7 +144,7 @@ class WS_ControlTRX(tornado.websocket.WebSocketHandler):
 		pass
 	
 	def SA818SF(self, freq):
-		print("freq:"+freq)
+		print(f"freq: {freq}")
 		radio.scan_freq(float(freq))
 		status = int(os.popen("cat /sys/class/gpio/gpio"+RXgpio+"/value").read())
 		print(status)
@@ -174,7 +168,7 @@ class WS_ControlTRX(tornado.websocket.WebSocketHandler):
 		
 	@tornado.gen.coroutine
 	def on_message(self, data) :
-		global LastPing, radio_opts, scanFlag
+		global LastPing, radio_opts
 		if not self.ws_connection:
 			return
 		print(data)
@@ -198,7 +192,7 @@ class WS_ControlTRX(tornado.websocket.WebSocketHandler):
 		elif(action == "getCONFIG"):
 			result_string = ",".join([f"{field}={value}" for field, value in radio_opts._asdict().items()])
 			yield self.write_message("getCONFIG:"+str(result_string)) 
-			yield print("getCONFIG:"+str(result_string))
+			yield print(f"getCONFIG: {result_string}")
 			yield self.write_message("getscanFREQS:"+str(config['SA818']['scan_frequencies'])) 
 		elif(action == "setCONFIG"):
 			(field, setting) = datato.split('=')
@@ -228,7 +222,7 @@ class loadWavdata(threading.Thread):
 		print('recording...')
 
 	def run(self):
-		global Wavframes, flagWavstart, AudioRXHandlerClients 
+		global flagWavstart, AudioRXHandlerClients 
 		ret=b''
 		while True:
 			while not flagWavstart:
@@ -283,16 +277,20 @@ class WS_AudioRXHandler(tornado.websocket.WebSocketHandler):
 class WS_AudioTXHandler(tornado.websocket.WebSocketHandler):
 	connected_clients = set()
 	last_msg_time = 0
+	stop_timeout = None
 
 	def stoppttontimeout(self):
 		try:
 			if time.time() > self.last_msg_time + 10:
-				if self.ws_connection and CTRX.infos["PTT"]==True:
+				if PTTset():
 					PTTset("false")
 					print("stop ptt on timeout")
+			else:
+				print("test ptt on timeout")
+				self.stop_timeout = tornado.ioloop.IOLoop.instance().add_timeout(datetime.timedelta(seconds=2), self.stoppttontimeout)
 		except:
 			return None
-		tornado.ioloop.IOLoop.instance().add_timeout(datetime.timedelta(seconds=1), self.stoppttontimeout)
+		
 
 
 	def TX_init(self, msg) :
@@ -313,7 +311,6 @@ class WS_AudioTXHandler(tornado.websocket.WebSocketHandler):
 			return
 		self.set_nodelay(True)
 		self.last_msg_time=time.time()
-		self.stoppttontimeout()
 		self.connected_clients.add(self)
 		print('new connection on AudioTXHandler socket.')
 
@@ -323,8 +320,12 @@ class WS_AudioTXHandler(tornado.websocket.WebSocketHandler):
 		self.last_msg_time=time.time()
 		if str(data).startswith('m:') :
 			self.TX_init(str(data[2:]))
+			if(self.stop_timeout == None):
+				self.stop_timeout = tornado.ioloop.IOLoop.instance().add_timeout(datetime.timedelta(seconds=2), self.stoppttontimeout)
 		elif str(data).startswith('s:') :
 			self.inp.close()
+			tornado.ioloop.IOLoop.instance().remove_timeout(self.stop_timeout)
+			self.stop_timeout = None
 		else :
 			try:
 				self.inp.write(data)
