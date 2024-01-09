@@ -2,7 +2,7 @@
 A minimalist version of uhrr to simple gateway with a talki walki.
 Based on orange pi and <a href="https://f5nlg.wordpress.com">spotnik delta inerface</a>.
 
-PTT on gpio 7 on orange pi zero.
+PTT on gpio 7 on orange pi zero.  
 Read reception flag on gpio 10 on orange pi zero.
 
 Interface:
