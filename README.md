@@ -32,18 +32,15 @@ or prefer:
 start.sh include some tricks for GPIO and alsamixer configuration for orangie pi zero.
 
 
-Got to https://your_ip:8888
+Got to https://your_ip:8888  
+**https only**  
+Clic somewhere on page to start the connection.  
 
-**https only**
+For hardware see :  
+http://docs.rrf.ovh/spotnik/ciSpotnik/delta/  
+https://boutique.spotnik.org/prestashop/fr/kits-a-monter/30-hummingbird-printed-t-shirt.html  
 
-Clic somewhere on page to start the connection.
-
-For hardware see :
-http://docs.rrf.ovh/spotnik/ciSpotnik/delta/
-https://boutique.spotnik.org/prestashop/fr/kits-a-monter/30-hummingbird-printed-t-shirt.html
-
-
-Config file:
+Config file:  
 
 ```
 [SERVER]
@@ -82,8 +79,8 @@ rate = 9600
 scan_frequencies = 145.4000,432.9750,432.5000
 scan_waittondetect = 5
 ```
-
-ngrock usage:
+  
+ngrock usage:  
 ```
 ngrok http https://localhost:8888
 ```
