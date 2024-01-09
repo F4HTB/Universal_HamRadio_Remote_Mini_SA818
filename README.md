@@ -63,7 +63,7 @@ authlogin = operator
 ; Password for authentication (if auth is true)
 authpassword = operator
 ; Path to the UHRR's log file
-log_file = UHRRM.log
+log_file = server_logs.log
 
 [AUDIO]
 ; Output audio device configuration
@@ -117,7 +117,7 @@ port = 8888
 certfile = UHRRM.crt
 keyfile = UHRRM.key
 cookie_secret = L8LwECiNRxq2N0N2eGxx9MZlrpmuMEimlydNX/vt1LM=
-debug = false
+debug = true
 auth = false
 authlogin = operator
 authpassword = operator
@@ -146,6 +146,8 @@ serial = /dev/ttyS2
 rate = 9600
 scan_frequencies = 145.4000,432.9750,432.7000
 scan_waittondetect = 5
+
+
 ```
   
 ngrock usage:  
