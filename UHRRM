@@ -132,11 +132,11 @@ class BaseHandler(tornado.web.RequestHandler):
 ############ websocket for control TRX ##############
 ControlTRXHandlerClients = []
 LastPing = time.time()
-WSGlobKey_random_string = ""
+WSGlobKey_random_string = None
 
 class WS_ControlTRX(tornado.websocket.WebSocketHandler):
 	executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
-	connected_clients = set()
+	ControlTRX_connected_clients = set()
 	
 	@tornado.concurrent.run_on_executor
 	def SA818Conf_setup(self, field, setting):
@@ -144,10 +144,9 @@ class WS_ControlTRX(tornado.websocket.WebSocketHandler):
 		pass
 	
 	def SA818SF(self, freq):
-		print(f"freq: {freq}")
 		radio.scan_freq(float(freq))
 		status = int(os.popen("cat /sys/class/gpio/gpio"+RXgpio+"/value").read())
-		print(status)
+		print(f"WS_ControlTRX scan freq: {freq} Status:{status}")
 		if status:
 			return freq
 		else:
@@ -156,14 +155,16 @@ class WS_ControlTRX(tornado.websocket.WebSocketHandler):
 
 	def open(self):
 		global WSGlobKey_random_string
+		if not WSGlobKey_random_string:
+			WSGlobKey_random_string = self.get_argument("keykey")
 		if  WSGlobKey_random_string != self.get_argument("keykey"):
 			self.close()
-			print('WS_ControlTRX Bad WSGlobKey.')
+			print('WS_ControlTRX Bad WSGlobKey')
 			return
 		self.set_nodelay(True)
 		if(config['SERVER']['yournameserver']!=""):
 			self.write_message("ENT: "+config['SERVER']['yournameserver'])
-		self.connected_clients.add(self)
+		self.ControlTRX_connected_clients.add(self)
 		print('new connection on ControlTRX socket.')
 		
 	@tornado.gen.coroutine
@@ -171,7 +172,7 @@ class WS_ControlTRX(tornado.websocket.WebSocketHandler):
 		global LastPing, radio_opts
 		if not self.ws_connection:
 			return
-		print(data)
+		print(f"WS_ControlTRX: {data}")
 		
 		try:
 			(action, datato) = data.split(':')
@@ -192,8 +193,9 @@ class WS_ControlTRX(tornado.websocket.WebSocketHandler):
 		elif(action == "getCONFIG"):
 			result_string = ",".join([f"{field}={value}" for field, value in radio_opts._asdict().items()])
 			yield self.write_message("getCONFIG:"+str(result_string)) 
-			yield print(f"getCONFIG: {result_string}")
+			yield print(f"WS_ControlTRX send getCONFIG:{result_string}")
 			yield self.write_message("getscanFREQS:"+str(config['SA818']['scan_frequencies'])) 
+			yield print(f"WS_ControlTRX send getscanFREQS:{config['SA818']['scan_frequencies']}")
 		elif(action == "setCONFIG"):
 			(field, setting) = datato.split('=')
 			yield self.SA818Conf_setup(field, setting)
@@ -206,13 +208,14 @@ class WS_ControlTRX(tornado.websocket.WebSocketHandler):
 		LastPing = time.time();
 			
 	def on_close(self):
-		if self in self.connected_clients:
-			self.connected_clients.remove(self)
+		print('WS_ControlTRX connection closed')
+		if self in self.ControlTRX_connected_clients:
+			self.ControlTRX_connected_clients.remove(self)
 		gc.collect()
 		
 ############ websocket for send RX audio from TRX ##############
 flagWavstart = False
-
+Wavframes = []
 class loadWavdata(threading.Thread):
 
 	def __init__(self):
@@ -229,64 +232,71 @@ class loadWavdata(threading.Thread):
 				time.sleep(0.5)
 			l, ret = self.inp.read()
 			if l > 0:
-				AudioRXHandlerClients.Wavframes.append(ret)
+				Wavframes.append(ret)
 			else:
 				print("overrun")
 				time.sleep(0.01)
 				
 
 class WS_AudioRXHandler(tornado.websocket.WebSocketHandler):
-	connected_clients = set()
+	AudioRXHandler_connected_clients = set()
 
 	def open(self):
-		global flagWavstart, AudioRXHandlerClients, WSGlobKey_random_string
+		global flagWavstart, WSGlobKey_random_string
+		if not WSGlobKey_random_string:
+			WSGlobKey_random_string = self.get_argument("keykey")
 		if  WSGlobKey_random_string != self.get_argument("keykey"):
 			self.close()
 			print('WS_AudioRXHandler Bad WSGlobKey.')
 			return
+		for client in self.AudioRXHandler_connected_clients:
+			try:
+				client.close()
+			except:
+				pass
 		self.set_nodelay(True)
-		AudioRXHandlerClients = self
-		self.Wavframes = []
+		Wavframes = []
 		flagWavstart = True
 		self.tailstream()
-		self.connected_clients.add(self)
-		print('new connection on AudioRXHandler socket.')
+		self.AudioRXHandler_connected_clients.add(self)
+		print('WS_AudioRXHandler new connection')
 		
 	@tornado.gen.coroutine
 	def tailstream(self):
 		while flagWavstart:
-			while len(self.Wavframes)==0:
+			while len(Wavframes)==0:
 				yield tornado.gen.sleep(0.1)
 			try:
-				yield self.write_message(self.Wavframes[0],binary=True)
-				del self.Wavframes[0]
+				yield self.write_message(Wavframes[0],binary=True)
+				del Wavframes[0]
 			except tornado.websocket.WebSocketClosedError:
-				print("WebSocket closed. Stopping tailstream.")
+				print("WS_AudioRXHandler connection closed. Stopping tailstream.")
 				break
 			
 	def on_close(self):
 		global flagWavstart
-		print('connection closed for audioRX')
-		if self in self.connected_clients:
-			self.Wavframes = []
+		print('WS_AudioRXHandler connection closed')
+		if self in self.AudioRXHandler_connected_clients:
+			Wavframes = []
 			flagWavstart = False
-			self.connected_clients.remove(self)
+			self.AudioRXHandler_connected_clients.remove(self)
 		gc.collect()
 
 ############ websocket for control TX ##############
 class WS_AudioTXHandler(tornado.websocket.WebSocketHandler):
-	connected_clients = set()
+	AudioTXHandler_connected_clients = set()
 	last_msg_time = 0
 	stop_timeout = None
-
+	inp = None
+	
 	def stoppttontimeout(self):
 		try:
 			if time.time() > self.last_msg_time + 10:
 				if PTTset():
 					PTTset("false")
-					print("stop ptt on timeout")
+					print("WS_AudioTXHandler stop ptt on timeout")
 			else:
-				print("test ptt on timeout")
+				print("WS_AudioTXHandler test ptt on timeout")
 				self.stop_timeout = tornado.ioloop.IOLoop.instance().add_timeout(datetime.timedelta(seconds=2), self.stoppttontimeout)
 		except:
 			return None
@@ -301,18 +311,20 @@ class WS_AudioTXHandler(tornado.websocket.WebSocketHandler):
 			device = config['AUDIO']['outputdevice']
 			self.inp = alsaaudio.PCM(alsaaudio.PCM_PLAYBACK, alsaaudio.PCM_NONBLOCK, channels=1, rate=itrate, format=alsaaudio.PCM_FORMAT_S16_LE, periodsize=2048, device=device)		
 		except:
-			print("TX pcm device busy")
+			print("WS_AudioTXHandler pcm device busy")
 	
 	def open(self):
 		global WSGlobKey_random_string
+		if not WSGlobKey_random_string:
+			WSGlobKey_random_string = self.get_argument("keykey")
 		if  WSGlobKey_random_string != self.get_argument("keykey"):
 			self.close()
-			print('WS_AudioTXHandler Bad WSGlobKey.')
+			print('WS_AudioTXHandler Bad WSGlobKey')
 			return
 		self.set_nodelay(True)
 		self.last_msg_time=time.time()
-		self.connected_clients.add(self)
-		print('new connection on AudioTXHandler socket.')
+		self.AudioTXHandler_connected_clients.add(self)
+		print('WS_AudioTXHandler new connection')
 
 	def on_message(self, data) :
 		if not self.ws_connection:
@@ -334,12 +346,12 @@ class WS_AudioTXHandler(tornado.websocket.WebSocketHandler):
 			gc.collect()
 
 	def on_close(self):
-		print('connection closed for TX socket')
-		if self in self.connected_clients:
-			if(hasattr(self,"inp")):
+		print('WS_AudioTXHandler connection closed')
+		if self in self.AudioTXHandler_connected_clients:
+			if hasattr(self,"inp") and self.inp is not None:
 				self.inp.close()
 			PTTset("false")
-			self.connected_clients.remove(self)	
+			self.AudioTXHandler_connected_clients.remove(self)	
 		gc.collect()
 
 ############ Login ##############
@@ -381,11 +393,13 @@ class MainHandler(BaseHandler):
 
 	def get(self):
 		global WSGlobKey_random_string
-		if WS_ControlTRX.connected_clients or WS_AudioRXHandler.connected_clients or WS_AudioTXHandler.connected_clients:
+		if WS_ControlTRX.ControlTRX_connected_clients or WS_AudioRXHandler.AudioRXHandler_connected_clients or WS_AudioTXHandler.AudioTXHandler_connected_clients:
 			self.write("Access denied. A connection already exists.")
 		else:
-			WSGlobKey_random_string = ''.join(secrets.choice('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789') for _ in range(20))
-			self.set_cookie("keykey", WSGlobKey_random_string, samesite=None, secure=True)
+			WSGlobKey_random_string = self.get_cookie("keykey")
+			if not WSGlobKey_random_string:
+				WSGlobKey_random_string = ''.join(secrets.choice('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789') for _ in range(20))
+				self.set_cookie("keykey", WSGlobKey_random_string, samesite=None, secure=True)
 			if config['SERVER']['auth'] == "true":
 				print("Tornado current user:"+str(self.current_user))
 				if not self.current_user:

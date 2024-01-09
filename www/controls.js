@@ -16,10 +16,8 @@ function bodyload(){
 		}
 	});
 	
-	var inputAndSelectElements = document.getElementById('SA818_control').querySelectorAll('input, select');
-	for (var i = 0; i < inputAndSelectElements.length; i++) {
-		inputAndSelectElements[i].disabled = true;
-	}
+	SA818_Control_Init(false);
+
 	blikcritik("mess")
 	document.getElementById('frequency').addEventListener('change', validateFrequencyAndOffsetFields);
 	document.getElementById('offset').addEventListener('change', validateFrequencyAndOffsetFields);
@@ -28,29 +26,32 @@ function bodyload(){
 	document.getElementById('Scan_frequencies_toggle').addEventListener('click', Send_scan_frequencies);
 }
 
+
+function sendWithwsTested(ws, msg){
+	if (ws){if(typeof ws !== 'undefined'){if(ws.readyState === WebSocket.OPEN){
+	  ws.send(msg);
+	}}}
+}
+
 //TRX control routines///////////////////////////////////////////////////////////////////////////
 
 var wsControlTRX = "";
 
 function ControlTRX_start(){
 	wsControlTRX = new WebSocket( 'wss://' + window.location.href.split( '/' )[2] + '/WSCTRX?keykey='+WSGlobKey );
-	wsControlTRX.onopen = SA818_Control_Init;
+	wsControlTRX.onopen = function(){sendWithwsTested(wsControlTRX, "getCONFIG");};
 	wsControlTRX.onmessage = wsControlTRXcrtol;
 	wsControlTRX.onclose = wsControlTRXclose;
 	wsControlTRX.onerror = wsControlTRXerror;
 }
 
 function wsControlTRXclose(){
-	console.log("wsAudioRXclose");
+	console.log("wsControlTRXclose");
 	wsControlTRX.close();
 }
 
 function wsControlTRXerror(err){
-	console.log("wsControlTRX");
-	wsControlTRX.close();
-	setTimeout(function () {
-		ControlTRX_start();
-	}, 5000);
+	console.log("wsControlTRXerror");
 }
 
 var mess = "";
@@ -67,20 +68,23 @@ var startTime;
 function checklatency(delay) {
 	setTimeout(function () {
 		startTime = Date.now();
-		if (wsControlTRX.readyState === WebSocket.OPEN) {wsControlTRX.send("PING");checklatency(delay);}
 		if ((wsControlTRX.readyState === WebSocket.OPEN) && (wsAudioRX.readyState === WebSocket.OPEN) && (wsAudioTX.readyState === WebSocket.OPEN)){
 			document.getElementById("container").style.borderColor="green";
 			document.getElementById("mess").innerHTML = "UHRR Mini<br>"+ mess;
+			document.getElementById("mess").style.color = "white";
 			delay=5000;
 		}else{
-			console.log("wsControlTRX:"+(wsControlTRX.readyState === WebSocket.OPEN));
-			console.log("wsAudioRX:"+(wsAudioRX.readyState === WebSocket.OPEN));
-			console.log("wsAudioTX:"+(wsAudioTX.readyState === WebSocket.OPEN));
+			if(wsControlTRX)console.log("wsControlTRX:"+(wsControlTRX.readyState));
+			if(wsAudioRX)console.log("wsAudioRX:"+(wsAudioRX.readyState));
+			if(wsAudioTX)console.log("wsAudioTX:"+(wsAudioTX.readyState));
 			document.getElementById("container").style.borderColor="red";
 			document.getElementById("mess").innerHTML = "UHRR Mini<br>Refresh webpage.";
 			document.getElementById("mess").style.color = "red";
+			SA818_Control_Init(false);
 			document.addEventListener('click', handlePageClick);
 		}
+		sendWithwsTested(wsControlTRX, "PING")
+		if (wsControlTRX.readyState === WebSocket.OPEN) {checklatency(delay);}
 	}, delay);
 }
 
@@ -91,7 +95,7 @@ function showlatency(){
 }
 
 function sendTRXptt(stat){
-	if (wsControlTRX.readyState === WebSocket.OPEN) {wsControlTRX.send("setPTT:"+stat);}
+	sendWithwsTested(wsControlTRX, "setPTT:"+stat);
 }
 
 function TXtoggle(state="None")
@@ -119,11 +123,21 @@ function TXtoggle(state="None")
 	AudioRX_audiobuffer = [];
 }
 
-
-
 function sendInputData(name, value) {
-	if (typeof wsControlTRX !== 'undefined' && wsControlTRX.readyState === WebSocket.OPEN) {
-	  wsControlTRX.send("setCONFIG:"+name+"="+value);
+	sendWithwsTested(wsControlTRX, "setCONFIG:"+name+"="+value);
+
+}
+function handlesendInputData(event) {
+	if (event.target){
+		if (event.target.type === 'checkbox') {
+			sendInputData(event.target.name, event.target.checked);
+		}
+		else if (event.target.type === 'text') {
+			sendInputData(event.target.name, event.target.value);
+		}
+		else if (event.target.type === 'select') {
+			sendInputData(event.target.name, event.target.value);
+		}
 	}
 }
 
@@ -133,7 +147,6 @@ function SA818_Control_Init_Values(values){
 	pairs = String(values).split(',');
 	const sa818ControlDiv = document.getElementById('SA818_control');
 	
-
 	pairs.forEach(pair => {
 		const [field, value] = pair.split('=');
 		const element = sa818ControlDiv.querySelector(`[id="${field}"]`);
@@ -143,39 +156,10 @@ function SA818_Control_Init_Values(values){
 			} else {
 				element.value = value;
 			}
-			element.disabled = false;
 		}
 	});
 	validateFrequencyAndOffsetFields();
-}
-
-function SA818_Control_Init(){
-	wsControlTRX.send("getCONFIG");
-
-	var SA818_Control_Container = document.getElementById('SA818_control');
-
-	var checkboxes = SA818_Control_Container.querySelectorAll('input[type="checkbox"]');
-	checkboxes.forEach(function (checkbox) {
-	  checkbox.addEventListener('change', function () {
-		sendInputData(checkbox.name, checkbox.checked);
-	  });
-	});
-
-	var textInputs = SA818_Control_Container.querySelectorAll('input[type="text"]');
-	
-	textInputs.forEach(function (textInput) {
-	  textInput.addEventListener('change', function () {
-		sendInputData(textInput.name, textInput.value);
-	  });
-	});
-	
-	var selects = SA818_Control_Container.querySelectorAll('select');
-
-	selects.forEach(function (select) {
-	  select.addEventListener('change', function () {
-		sendInputData(select.name, select.value);
-	  });
-	});
+	SA818_Control_Init();
 }
 
 function validateFrequencyAndOffsetFields() {
@@ -199,15 +183,40 @@ function validateFrequencyAndOffsetFields() {
   }
 }
 
-function validateLinesInTextAreaFS(e) {
-		var textarea = e.target || e.srcElement;
-		const checkbox = document.getElementById('Scan_frequencies_toggle');
+function SA818_Control_Init(set=true){
+	if(set){
+		document.getElementById('SA818_control').querySelectorAll('input, select').forEach(function (element){
+			element.addEventListener('change', handlesendInputData);
+			element.disabled = false;
+			});
+	}
+	else{
+		document.getElementById('SA818_control').querySelectorAll('input, select').forEach(function (element){
+			element.removeEventListener('change', handlesendInputData);
+			element.disabled = true;
+			});
+		document.getElementById('Scan_frequencies').disabled = true;
+		document.getElementById('Scan_frequencies_toggle').disabled = true;
+	}
+}
 
-		const lines = textarea.value.split('\n');
-		let allLinesValid = true;
+function Receive_scan_frequencies(freqs) {
+	var textarea = document.getElementById('Scan_frequencies');
+	textarea.value = freqs.split(',').join('\n');
+	document.getElementById('Scan_frequencies').disabled = false;
+	document.getElementById('Scan_frequencies_toggle').disabled = false;
+	validateLinesInTextAreaFS();
+}
+
+function validateLinesInTextAreaFS(e=null) {
+	var textarea = document.getElementById('Scan_frequencies');
+	if(e)textarea = e.target || e.srcElement;
+	const checkbox = document.getElementById('Scan_frequencies_toggle');
+
+	const lines = textarea.value.split('\n');
+	let allLinesValid = true;
 		
-const formattedLines = lines
-	.map(line => {
+	const formattedLines = lines.map(line => {
 		const trimmedLine = line.trim();
 
 		if (trimmedLine !== '' && /^-?\d+(\.\d+)?$/.test(trimmedLine)) {
@@ -215,17 +224,13 @@ const formattedLines = lines
 		} else {
 			return null; 
 		}
-	})
-	.filter(Boolean); 
-
+	}).filter(Boolean); 
 
 	textarea.value = formattedLines.join('\n');
-
 	const isValid = formattedLines.every(value => {
 		const floatValue = parseFloat(value);
 		return (floatValue >= 144 && floatValue <= 148) || (floatValue >= 420 && floatValue <= 450);
 	});
-
 
 	if (!isValid) {
 		textarea.style.backgroundColor = 'red';
@@ -235,7 +240,7 @@ const formattedLines = lines
 		textarea.style.backgroundColor = ''; // Remettre le style par défaut
 		checkbox.disabled = false;
 	}
-	if (e.key === "Enter") {textarea.value += "\n";textarea.focus();}
+	if (e){if (e.key === "Enter") {textarea.value += "\n";textarea.focus();}}
 }
 
 var freqstoscan ="";
@@ -244,11 +249,7 @@ function Send_scan_frequencies(e) {
 	var Scan_frequencies_toggle = e.target || e.srcElement;
 	var textarea = document.getElementById('Scan_frequencies');
 	freqstoscan = textarea.value.split('\n');
-	if (Scan_frequencies_toggle.checked) {
-		if (typeof wsControlTRX !== 'undefined' && wsControlTRX.readyState === WebSocket.OPEN) {
-		  wsControlTRX.send("setscanFREQS:"+freqstoscan.join(','));
-		}
-	}
+	if (Scan_frequencies_toggle.checked) {sendWithwsTested(wsControlTRX, "setscanFREQS:"+freqstoscan.join(','));}
 	Scan_frequencies(0);
 }
 
@@ -266,16 +267,10 @@ function Scan_frequencies(freq) {
 			actufreqtoscan++;
 			if(actufreqtoscan > (freqstoscan.length-1)){actufreqtoscan=0;}
 			console.log(freqstoscan[actufreqtoscan] + " in " + actufreqtoscan);
-			wsControlTRX.send("scanFREQ:"+freqstoscan[actufreqtoscan]);
+			sendWithwsTested(wsControlTRX, "scanFREQ:"+freqstoscan[actufreqtoscan]);
 			document.getElementById('frequency').value=freqstoscan[actufreqtoscan];
 		}
 	}
-}
-
-function Receive_scan_frequencies(freqs) {
-	var textarea = document.getElementById('Scan_frequencies');
-	textarea.value = freqs.split(',').join('\n');
-	textarea.dispatchEvent(new Event('blur'));
 }
 
 //RX Audio routines///////////////////////////////////////////////////////////////////////////
@@ -320,7 +315,7 @@ function AudioRX_start(){
 					synth_buff[i] = AudioRX_audiobuffer[0][i];
 				}
 				if(le){AudioRX_audiobuffer.shift();}
-				if(AudioRX_audiobuffer.length > 10){AudioRX_audiobuffer = [];AudioRX_audiobuffer.length = 0;}
+				if(AudioRX_audiobuffer.length > 20){AudioRX_audiobuffer = [];AudioRX_audiobuffer.length = 0;}
 			}
 		};
 	}());
@@ -352,18 +347,26 @@ function wsAudioRXclose(){
 
 function wsAudioRXerror(err){
 	console.log("wsAudioRXerror");
-	AudioRX_stop();
-	setTimeout(function () {
-		AudioRX_start();
-	}, 5000);
 }
 
 function AudioRX_stop()
 {
-	audiobufferready = false;
 	wsAudioRX.close();
-	AudioRX_source_node.onaudioprocess = null
-	if (audioContext.state !== 'closed') {AudioRX_context.close();}
+	wsAudioRX = "";
+	
+	AudioRX_source_node.disconnect();
+	AudioRX_gain_node.disconnect();
+	AudioRX_biquadFilter_node.disconnect();
+	AudioRX_analyser.disconnect();
+	
+	AudioRX_source_node = null;
+	AudioRX_gain_node = null;
+	AudioRX_biquadFilter_node = null;
+	AudioRX_analyser = null;
+	
+	if (AudioRX_context.state !== 'closed') {
+    AudioRX_context.close();
+	}
 }
 
 var muteRX=false;
@@ -376,11 +379,13 @@ function toggleaudioRX(stat="None"){
 
 const RXinstantMeter = document.querySelector('#RXinstant meter');
 function drawRXvol(){
-	var arraySPC = new Float32Array(AudioRX_analyser.fftSize);
-	AudioRX_analyser.getFloatTimeDomainData(arraySPC);
-	RXinstantMeter.value = Math.max.apply(null, arraySPC)*100;
-	if(RXinstantMeter.value > RXinstantMeter.high){blikcritik("RX-GAIN_control")};
-	setTimeout(function(){ drawRXvol(); }, 300);
+	if (AudioRX_analyser) {
+		var arraySPC = new Float32Array(AudioRX_analyser.fftSize);
+		AudioRX_analyser.getFloatTimeDomainData(arraySPC);
+		RXinstantMeter.value = Math.max.apply(null, arraySPC)*100;
+		if(RXinstantMeter.value > RXinstantMeter.high){blikcritik("RX-GAIN_control")};
+		setTimeout(function(){ drawRXvol(); }, 300);
+	}
 }
 
 //TX Audio routines///////////////////////////////////////////////////////////////////////////
@@ -727,7 +732,6 @@ var isRecording = false, encode = false;
 var wsAudioTX = "";
 var ap = "";
 var mh = "";
-
 const TXinstantMeter = document.querySelector('#TXinstant meter');
 
 function AudioTX_start()
@@ -748,10 +752,6 @@ function wsAudioTXclose(){
 
 function wsAudioTXError(err){
 	console.log("wsAudioTXerror");
-	AudioTX_stop();
-	setTimeout(function () {
-		AudioTX_start();
-	}, 5000);
 }
 
 function AudioTX_stop()
@@ -759,6 +759,7 @@ function AudioTX_stop()
 	isRecording = false;
 	encode = false;
 	wsAudioTX.close();
+	wsAudioTX = null;
 	ap = "";
 	mh = "";
 }
@@ -766,14 +767,12 @@ function AudioTX_stop()
 function sendSettings()
 {
 	encode = 0;
-
 	var rate = String( mh.context.sampleRate / ap.downSample );
 	var opusRate = String( ap.opusRate );
 	var opusFrameDur = String( ap.opusFrameDur )
-
 	var msg = "m:" + [ rate, encode, opusRate, opusFrameDur ].join( "," );
 	console.log( msg );
-	wsAudioTX.send( msg );
+	sendWithwsTested(wsAudioTX, msg);
 }
 
 function startRecord()
@@ -787,13 +786,11 @@ function startRecord()
 function stopRecord()
 {
 	TXinstantMeter.value = 0;
-	
 	isRecording  = false;
 	console.log( 'ended recording' ); 
-
 	var msg = "s:";
 	console.log( msg );
-	wsAudioTX.send( msg );
+	sendWithwsTested(wsAudioTX, msg);
 }
 
 function AudioTX_SetGAIN( vol ){
@@ -810,43 +807,47 @@ function toggleRecord(sendit = false)
 
 function drawBF(){
 	if(muteRX){Audio_analyser=AudioTX_analyser}else{Audio_analyser=AudioRX_analyser}
-	drawRXSPC(Audio_analyser);
-	drawRXWTT(Audio_analyser);
+	if (Audio_analyser) {
+		drawRXSPC(Audio_analyser);
+		drawRXWTT(Audio_analyser);
+	}
 	setTimeout(function(){ drawBF(); }, 100);
 }
 
 canvasBFspc = document.getElementById("canBFSPC");
 ctxBFspc = canvasBFspc.getContext("2d");
 function drawRXSPC(Audio_analyser){
-var arraySPC = new Float32Array(Audio_analyser.fftSize);
-Audio_analyser.getFloatTimeDomainData(arraySPC);
 
-arraySPC = arraySPC.map(function(value) {
-  return value / 2.5;
-});
+		var arraySPC = new Float32Array(Audio_analyser.fftSize);
+		Audio_analyser.getFloatTimeDomainData(arraySPC);
 
-ctxBFspc.clearRect(0, 0, canvasBFspc.width, canvasBFspc.height);
-ctxBFspc.fillStyle = 'rgb(0, 0, 0)';
-ctxBFspc.fillRect(0, 0, canvasBFspc.width, canvasBFspc.height);
-ctxBFspc.lineWidth = 2;
-ctxBFspc.strokeStyle = 'rgb(255, 255, 0)';
-ctxBFspc.beginPath();
-var largeurTranche = canvasBFspc.width * 1.0 / Audio_analyser.fftSize;
-var x = 0;
-var canvasBFspcdiv2 = canvasBFspc.height/2;
+		arraySPC = arraySPC.map(function(value) {
+		  return value / 2.5;
+		});
 
-  for(var i = 0; i < Audio_analyser.fftSize; i++) {
-	var y = canvasBFspcdiv2 + arraySPC[i] * canvasBFspcdiv2;
-	
-	if(i === 0) {
-	  ctxBFspc.moveTo(x, y);
-	} else {
-	  ctxBFspc.lineTo(x, y);
-	}
-	x += largeurTranche;
-  }
-  ctxBFspc.lineTo(canvasBFspc.width, canvasBFspc.height/2);
-  ctxBFspc.stroke();
+		ctxBFspc.clearRect(0, 0, canvasBFspc.width, canvasBFspc.height);
+		ctxBFspc.fillStyle = 'rgb(0, 0, 0)';
+		ctxBFspc.fillRect(0, 0, canvasBFspc.width, canvasBFspc.height);
+		ctxBFspc.lineWidth = 2;
+		ctxBFspc.strokeStyle = 'rgb(255, 255, 0)';
+		ctxBFspc.beginPath();
+		var largeurTranche = canvasBFspc.width * 1.0 / Audio_analyser.fftSize;
+		var x = 0;
+		var canvasBFspcdiv2 = canvasBFspc.height/2;
+
+		  for(var i = 0; i < Audio_analyser.fftSize; i++) {
+			var y = canvasBFspcdiv2 + arraySPC[i] * canvasBFspcdiv2;
+			
+			if(i === 0) {
+			  ctxBFspc.moveTo(x, y);
+			} else {
+			  ctxBFspc.lineTo(x, y);
+			}
+			x += largeurTranche;
+		  }
+		  ctxBFspc.lineTo(canvasBFspc.width, canvasBFspc.height/2);
+		  ctxBFspc.stroke();
+
 }
 
 canvasBFFFT = document.getElementById("canBFWF");
