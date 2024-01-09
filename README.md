@@ -152,3 +152,9 @@ ngrock usage:
 ```
 ngrok http https://localhost:8888
 ```
+
+To generate a new certfile:  
+```
+chmod +x gencert.sh
+./gencert.sh
+```
