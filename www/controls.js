@@ -124,11 +124,6 @@ function checklatency(delay) {
 			document.getElementById("mess").style.color = "red";
 			// document.addEventListener('click', handlePageClick);
 		}
-		
-			if(wsControlTRX)console.log("wsControlTRX:"+(wsControlTRX.readyState));
-			if(wsAudioRX)console.log("wsAudioRX:"+(wsAudioRX.readyState));
-			if(wsAudioTX)console.log("wsAudioTX:"+(wsAudioTX.readyState));
-		
 		sendWithwsTested(wsControlTRX, "PING")
 		if (wsControlTRX.readyState === WebSocket.OPEN) {checklatency(delay);}
 		else{SA818_Control_Init(false);}
