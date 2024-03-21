@@ -37,7 +37,11 @@ or prefer:
 ./start.sh
 ```
 start.sh include some tricks for GPIO and alsamixer configuration for orangie pi zero.
-
+or
+```
+apt install screen
+screen -S UHRR -dm bash -c './UHRRM'
+```
 
 Got to https://your_ip:8888  
 **https only**  
