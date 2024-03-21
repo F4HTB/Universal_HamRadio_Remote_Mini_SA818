@@ -11,21 +11,18 @@ Interface:
 
 <img src="https://boutique.spotnik.org/prestashop/24-large_default/spotnik-hot-spot-.jpg" width="200" height="200">
 
-For installation on **armbian**:
+For installation on **armbian** as root (sudo su):
 
-new:
+
+```
+apt install armbian-config
+armbian-config
+```
+=>search in system>Hardware and add "analog-codec" and "uart2"
+continue with:
 ```
 git clone https://github.com/F4HTB/Universal_HamRadio_Remote_Mini_SA818
-apt install -y python3-tornado python3-alsaaudio python3-serial
-cd Universal_HamRadio_Remote_Mini_SA818
-chmod +x UHRRM
-chmod +x start.sh
-```
-
-old:
-```
-git clone https://github.com/F4HTB/Universal_HamRadio_Remote_Mini_SA818
-apt install python3-tornado
+apt install python3-tornado python3-serial python3-pip python3-dev libasound2-dev
 rm /usr/lib/python3.11/EXTERNALLY-MANAGED
 pip3 install pyalsaaudio
 cd Universal_HamRadio_Remote_Mini_SA818
