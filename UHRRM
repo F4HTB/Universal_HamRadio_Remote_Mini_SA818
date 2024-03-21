@@ -402,7 +402,11 @@ class AuthLogoutHandler(tornado.web.RequestHandler):
 class MainHandler(tornado.web.RequestHandler):
 
 	def get(self):
+		return self.get_secure_cookie("user")
+
+	def get(self):
 		global WSGlobKey_random_string
+		self.current_user = self.get_current_user();
 		try:
 			logger.info(f'Connection from IP: {self.request.remote_ip} {self.request.headers.get("Host", "Unknown Host")}')
 			if WSGlobKey_random_string != self.get_cookie("keykey") and (WS_ControlTRX.ControlTRX_connected_clients or WS_AudioRXHandler.AudioRXHandler_connected_clients or WS_AudioTXHandler.AudioTXHandler_connected_clients):
