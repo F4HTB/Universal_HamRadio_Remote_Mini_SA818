@@ -401,7 +401,7 @@ class AuthLogoutHandler(tornado.web.RequestHandler):
 ############ Main ##############
 class MainHandler(tornado.web.RequestHandler):
 
-	def get(self):
+	def get_current_user(self):
 		return self.get_secure_cookie("user")
 
 	def get(self):
