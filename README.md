@@ -13,6 +13,16 @@ Interface:
 
 For installation on **armbian**:
 
+new:
+```
+git clone https://github.com/F4HTB/Universal_HamRadio_Remote_Mini_SA818
+apt install -y python3-tornado python3-alsaaudio python3-serial
+cd Universal_HamRadio_Remote_Mini_SA818
+chmod +x UHRRM
+chmod +x start.sh
+```
+
+old:
 ```
 git clone https://github.com/F4HTB/Universal_HamRadio_Remote_Mini_SA818
 apt install python3-tornado
